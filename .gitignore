@@ -1,0 +1,60 @@
+# Reference:
+# https://github.com/github/gitignore
+
+# Application
+# -----------------------------------------------------------------------------
+
+*.log
+
+
+# Targets
+# -----------------------------------------------------------------------------
+
+# Android
+.gradle/
+
+# C++
+
+
+# Editors
+# -----------------------------------------------------------------------------
+
+# Emacs
+*~
+
+# Vim swap (see http://vimdoc.sourceforge.net/htmldoc/recover.html#swap-file)
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+!*.svg
+
+# Visual Studio user-specific files
+*.suo
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Xcode user settings
+xcuserdata/
+
+
+# Platforms
+# -----------------------------------------------------------------------------
+
+# macOS
+.DS_Store
+
+# Windows thumbnail cache files
+Thumbs.db
+
+# Windows folder config files
+[Dd]esktop.ini
+
+# Windows shortcuts
+*.lnk

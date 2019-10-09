@@ -1,6 +1,6 @@
 [submodule "external/uWebSockets"]
-  path = external/uWebSockets
-  url = git@github.com:uNetworking/uWebSockets.git
+	path = external/uWebSockets
+	url = git@github.com:uNetworking/uWebSockets.git
 [submodule "external/janky"]
 	path = external/janky
 	url = git@github.com:lcodes/janky.git

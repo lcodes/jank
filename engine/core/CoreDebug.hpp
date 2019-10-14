@@ -10,26 +10,21 @@ DECL_LOG_SOURCE(Debug, Debug);
 DECL_LOG_SOURCE(Debug, Warn);
 #endif
 
-// Discard the C assert macro if it has been defined.
-#ifdef assert
-# undef assert
-#endif
-
 /// Enhanced version of the C assert macro.
 #if BUILD_DEBUG || BUILD_DEVELOPMENT
-# define assert(test, ...) \
-  SAFE_EXPR(if UNLIKELY(test) { \
+# define ASSERT(test, ...) \
+  SAFE_EXPR(if UNLIKELY(!(test)) { \
     assertFailure(__FILE__, __LINE__, ##__VA_ARGS__); \
   })
 #else
-# define assert(test, ...) static_cast<void>(0)
+# define ASSERT(test, ...) static_cast<void>(0)
 #endif
 
 /// Expensive assertion. Only enabled in debug builds.
 #if BUILD_DEBUG
-# define assertEx(...) assert(__VA_ARGS__)
+# define ASSERT_EX(...) assert(__VA_ARGS__)
 #else
-# define assertEx(...) (static_cast<void>(0))
+# define ASSERT_EX(...) (static_cast<void>(0))
 #endif
 
 /// Writes the formatted assertion message and aborts.

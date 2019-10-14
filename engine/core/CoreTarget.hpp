@@ -221,7 +221,7 @@
 // -----------------------------------------------------------------------------
 
 #define FALLTHROUGH  [[fallthrough]]
-#define MAYBE_UNUSED [[maybe_unused]]
+#define UNUSED       [[maybe_unused]]
 #define NO_DISCARD   [[nodiscard]]
 
 #if COMPILER_GNU_COMPATIBLE
@@ -235,9 +235,9 @@
 #if __cplusplus >= 201803L
 # define LIKELY(x)   (x) [[likely]]
 # define UNLIKELY(x) (x) [[unlikely]]
-#elif COMPILER_CLANG || COMPILER_GCC
-# define LIKELY(x)   (__builtin_expect(x, 1))
-# define UNLIKELY(x) (__builtin_expect(x, 0))
+#elif COMPILER_GNU_COMPATIBLE
+# define LIKELY(x)   (__builtin_expect(!!(x), 1))
+# define UNLIKELY(x) (__builtin_expect(!!(x), 0))
 #else
 # define LIKELY(x)   (x)
 # define UNLIKELY(x) (x)
@@ -284,4 +284,8 @@
 # if BUILD_DEBUG && !defined(_ITERATOR_DEBUG_LEVEL)
 #  define _ITERATOR_DEBUG_LEVEL 1
 # endif
+#endif
+
+#if COMPILER_CLANG
+# pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #endif

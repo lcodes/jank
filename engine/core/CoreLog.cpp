@@ -37,17 +37,17 @@ void log(char const* source, LogLevel level, char const* fmt, ...) {
 }
 
 #if BUILD_DEVELOPMENT
-# define FMT_FULL "%.*s\n  %s:%u"
 
 void log(char const* file, u32 line, char const* source, LogLevel level, char const* fmt, ...) {
+  constexpr char const* fmtFull = "%.*s\n  %s:%u";
   WITH_VA({
     // We want to issue a single call to android's log API.
     // So we first format the user's message and then log it with the file and line.
     char buf[1024];
     auto count{vsnprintf(buf, sizeof(buf), fmt, args)};
     if (count < 0) abort(); // TODO: better handling?
-    if (count < sizeof(buf)) {
-      __android_log_print(getPriority(level), source, FMT_FULL, count, buf, file, line);
+    if (count < static_cast<i32>(sizeof(buf))) {
+      __android_log_print(getPriority(level), source, fmtFull, count, buf, file, line);
     }
     else {
       // Stack buffer wasn't large enough, fallback to heap memory.
@@ -57,7 +57,7 @@ void log(char const* file, u32 line, char const* source, LogLevel level, char co
       if (!mem) abort();
       count = vsnprintf(mem, count, fmt, args);
       if (count < 0) abort();
-      __android_log_print(getPriority(level), source, FMT_FULL, count, mem, file, line);
+      __android_log_print(getPriority(level), source, fmtFull, count, mem, file, line);
       free(mem);
     }
   });

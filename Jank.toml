@@ -21,6 +21,17 @@ sources = ["engine/**/*",
            "external/imgui/*.h",
            "external/imgui/*.cpp"]
 
+[targets.JankEngine.filters]
+"engine/app/android" = ["Android"]
+"engine/app/apple"   = ["MacOS", "IOS", "TVOS"]
+"engine/app/html5"   = ["HTML5"]
+"engine/app/linux"   = ["Linux"]
+"engine/app/windows" = ["Windows"]
+
+"engine/gfx/d3d12"  = ["Windows"]
+"engine/gfx/metal"  = ["MacOS", "IOS", "TVOS"]
+"engine/gfx/vulkan" = ["Android", "Windows", "Linux"]
+
 # TODO make editor depend on engine; reuse sources
 [targets.JankEditor]
 type = "Application"

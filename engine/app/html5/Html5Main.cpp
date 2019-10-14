@@ -1,7 +1,5 @@
 #include "Core.hpp"
 
-#if PLATFORM_HTML5
-
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
@@ -222,5 +220,3 @@ int main() {
   printf("Oh no!\n");
   return 0;
 }
-
-#endif

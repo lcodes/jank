@@ -35,6 +35,28 @@ public:
     pthread_mutex_unlock(&mutex);
   }
 };
+#elif PLATFORM_WINDOWS
+# include <Windows.h>
+
+class SyncEvent {
+  HANDLE handle;
+
+public:
+  SyncEvent(bool initValue = false) :
+    handle(CreateEventW(nullptr, false, initValue, nullptr)) {}
+
+  ~SyncEvent() {
+    CloseHandle(handle);
+  }
+
+  void set() {
+    SetEvent(handle);
+  }
+
+  void wait() {
+    WaitForSingleObject(handle, INFINITE);
+  }
+};
 #else
 # error TODO Implement SyncEvent for the target platform
 #endif

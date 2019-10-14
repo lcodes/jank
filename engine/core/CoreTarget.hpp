@@ -41,10 +41,6 @@
 // Compiler
 // -----------------------------------------------------------------------------
 
-#if !defined(__cplusplus) || __cplusplus < 201603L
-# error C++17 support is required
-#endif
-
 // NOTE: Clang and Intel compilers define __GNUC__ and must be detected first.
 #if defined(__clang__)
 # define COMPILER_CLANG 1
@@ -111,7 +107,7 @@
 # else
 #  define PLATFORM_LINUX 1
 # endif
-#elif defined(WIN32)
+#elif defined(_WIN32)
 # define PLATFORM_WINDOWS 1
 #elif defined(__EMSCRIPTEN__)
 # define PLATFORM_HTML5 1
@@ -119,7 +115,7 @@
 # error Unsupported platform
 #endif
 
-/// Platform implements the POSIX standard.
+/// Platform implementing the POSIX standard.
 #define PLATFORM_POSIX (!PLATFORM_WINDOWS && !PLATFORM_HTML5)
 
 /// Platform is one of macOS, iOS, tvOS or watchOS.
@@ -134,7 +130,7 @@
 
 /// Platform is one of iOS, tvOS or watchOS. Uses UIKit.
 #ifndef PLATFORM_IPHONE
-# define PLATFORM_IPHONE
+# define PLATFORM_IPHONE 0
 #endif
 
 /// Platform is iOS running iPhone and iPad.
@@ -220,6 +216,18 @@
 // Attributes
 // -----------------------------------------------------------------------------
 
+#if COMPILER_MSVC && defined(_MSVC_LANG)
+# define LANGUAGE_VERSION _MSVC_LANG
+#elif defined(__cplusplus)
+# define LANGUAGE_VERSION __cplusplus
+#else
+# define LANGUAGE_VERSION 0L
+#endif
+
+#if LANGUAGE_VERSION < 201703L
+# error A C++17 compiler is required.
+#endif
+
 #define FALLTHROUGH  [[fallthrough]]
 #define UNUSED       [[maybe_unused]]
 #define NO_DISCARD   [[nodiscard]]
@@ -232,7 +240,7 @@
 # define UNREACHABLE
 #endif
 
-#if __cplusplus >= 201803L
+#if LANGUAGE_VERSION >= 201803L
 # define LIKELY(x)   (x) [[likely]]
 # define UNLIKELY(x) (x) [[unlikely]]
 #elif COMPILER_GNU_COMPATIBLE
@@ -289,3 +297,4 @@
 #if COMPILER_CLANG
 # pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #endif
+

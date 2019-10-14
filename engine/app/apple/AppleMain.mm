@@ -1,7 +1,5 @@
 #include "App.hpp"
 
-#if PLATFORM_APPLE
-
 #import <CoreFoundation/CoreFoundation.h>
 
 #include "GfxTest.hpp"
@@ -567,5 +565,3 @@ i32 main(i32 argc UNUSED, char* argv UNUSED[]) {
   return UIApplicationMain(argc, argv, nil, appDelegateClassName);
 #endif
 }
-
-#endif // PLATFORM_APPLE

@@ -3,7 +3,10 @@
 
 #include "imgui.h"
 
-#include <pthread.h>
+#if PLATFORM_POSIX
+# include <pthread.h>
+#endif
+
 #include <string>
 
 #if PLATFORM_ANDROID
@@ -15,12 +18,14 @@
 #elif PLATFORM_IPHONE
 # include <OpenGLES/ES3/gl.h>
 # include <OpenGLES/ES3/glext.h>
+#elif PLATFORM_WINDOWS
+# include <gl/GL.h>
 #else
 # error Don't know how to include OpenGL for the target platform
 #endif
 
 DECL_LOG_SOURCE(GfxTest, Info);
-
+#if !PLATFORM_WINDOWS
 
 // OpenGL Helpers
 // -----------------------------------------------------------------------------
@@ -426,3 +431,4 @@ void* renderMain(void* arg) {
 
   return nullptr;
 }
+#endif

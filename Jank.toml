@@ -1,0 +1,33 @@
+[project]
+name    = "Jank"
+version = "0.1.0"
+
+description = "Oi, janky hack mate!"
+
+min_janky_version = "0.1.0"
+
+c_standard   = 11
+cxx_standard = 17
+
+# TODO exclude build sources by target, but still show them in generated xcode/vs projects
+
+[targets.JankEngine]
+type = "Application"
+
+assets  = "assets"
+sources = ["engine/**/*",
+           # "external/fmt/include/fmt/*.h",
+           # "external/fmt/src/*.cc",
+           "external/imgui/*.h",
+           "external/imgui/*.cpp"]
+
+# TODO make editor depend on engine; reuse sources
+[targets.JankEditor]
+type = "Application"
+
+depends   = ["JankEngine"]
+platforms = ["Linux", "MacOS", "Windows"]
+defines   = ["BUILD_EDITOR"]
+
+assets  = "assets"
+sources = ["editor/**/*"]

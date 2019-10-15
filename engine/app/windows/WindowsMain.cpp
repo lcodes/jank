@@ -51,6 +51,7 @@ static u32 renderMainWin(void* arg) {
   return 0;
 }
 
+#if GFX_PRESENT_THREAD
 static u32 presentMain(void* arg) {
   auto gl{ reinterpret_cast<WindowsOpenGL*>(arg) };
   while (true) {
@@ -60,6 +61,7 @@ static u32 presentMain(void* arg) {
   }
   return 0;
 }
+#endif
 
 static LRESULT wndProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) noexcept {
   if (msg == WM_DESTROY) {
@@ -204,7 +206,10 @@ int main()
   gl.clearCurrent();
 
   _beginthreadex(nullptr, 0, renderMainWin, &gl, 0, nullptr);
+  
+#if GFX_PRESENT_THREAD
   _beginthreadex(nullptr, 0, presentMain, &gl, 0, nullptr);
+#endif
 
   MSG msg;
   auto running{ true };

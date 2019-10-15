@@ -16,7 +16,9 @@ static double getTime() {
   return static_cast<double>(time.tv_sec) + static_cast<double>(time.tv_nsec) / 1E9;
 }
 
+#if GFX_PRESENT_THREAD
 static void* presentMain(void*);
+#endif
 
 class AndroidOpenGL : public OpenGL {
 public:
@@ -72,7 +74,14 @@ public:
 
     pthread_t render, present;
     pthread_create(&render,  nullptr, &renderMain,  this);
+#if GFX_PRESENT_THREAD
     pthread_create(&present, nullptr, &presentMain, this);
+#endif
+  }
+
+  void present() override {
+    auto result{eglSwapBuffers(gl->display, gl->surface)};
+    ASSERT(result);
   }
 
   void clearCurrent() override {
@@ -93,17 +102,18 @@ public:
   }
 };
 
+#if GFX_PRESENT_THREAD
 static void* presentMain(void* arg) {
   auto gl{reinterpret_cast<AndroidOpenGL*>(arg)};
   while (true) {
     gl->presentReady.wait();
     gl->makeCurrent();
-    auto result{eglSwapBuffers(gl->display, gl->surface)};
-    ASSERT(result);
+    gl->present();
     gl->clearCurrent();
     gl->renderReady.set();
   }
 }
+#endif
 
 static AndroidOpenGL gl;
 
@@ -256,4 +266,3 @@ void android_main(android_app* app) {
 
   // Terminate
 }
-

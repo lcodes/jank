@@ -3,6 +3,10 @@
 
 #include "imgui.h"
 
+#if PLATFORM_MACOS
+# include <unistd.h>
+#endif
+
 #if PLATFORM_POSIX
 # include <pthread.h>
 #endif
@@ -362,6 +366,12 @@ void* renderMain(void* arg) {
   glDisable(GL_DEPTH_TEST);
   glDepthMask(false);
 
+#if PLATFORM_MACOS
+  // FIXME: getting random crashes using APPLE's software renderer
+  //        this seems to fix it? maybe spawning thread too quickly?
+  //usleep(100000);
+#endif
+
   while (true) {
     r += 0.001;
     g += 0.0025;
@@ -374,7 +384,7 @@ void* renderMain(void* arg) {
     io.DisplayFramebufferScale = ImVec2{gl->dpi, gl->dpi};
 
     io.DeltaTime = gl->getDeltaTime();
-#if 1
+#if 0
     io.DeltaTime = 0.016;
 #endif
     // TODO update cursor
@@ -396,6 +406,13 @@ void* renderMain(void* arg) {
     auto scale {drawData->FramebufferScale};
     auto width {static_cast<GLsizei>(drawData->DisplaySize.x * scale.x)};
     auto height{static_cast<GLsizei>(drawData->DisplaySize.y * scale.y)};
+
+#if GFX_PRESENT_THREAD && (PLATFORM_ANDROID || PLATFORM_MACOS)
+    gl->renderReady.wait();
+# if PLATFORM_ANDROID
+    gl->makeCurrent();
+# endif
+#endif
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     //glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -486,7 +503,7 @@ void* renderMain(void* arg) {
                                        reinterpret_cast<void*>(draw->IdxOffset * sizeof(ImDrawIdx) + idxOffset)/*,
                                                                                                                 draw->VtxOffset + vtxOffset*/);
           glCheck();
-          LOG(GfxTest, Info, "DRAW %d.%d", n, i);
+          //LOG(GfxTest, Info, "DRAW %d.%d", n, i);
         }
       }
 
@@ -502,21 +519,20 @@ void* renderMain(void* arg) {
     glBindVertexArray(0);
     glUseProgram(0);
 
-#if 1
+#if GFX_PRESENT_THREAD && !PLATFORM_ANDROID && !PLATFORM_MACOS
     gl->renderReady.wait();
-#if PLATFORM_ANDROID
-    gl->makeCurrent();
-#endif
 #endif
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBlitFramebuffer(0, 0, 800, 600, 0, 0, 800, 600, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBlitFramebuffer(0, 0, gl->width, gl->height,
+                      0, 0, gl->width, gl->height,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-#if 1
-#if PLATFORM_ANDROID
+#if GFX_PRESENT_THREAD
+# if PLATFORM_ANDROID
     gl->clearCurrent();
-#endif
+# endif
     //glFlush();
     gl->presentReady.set();
 #else

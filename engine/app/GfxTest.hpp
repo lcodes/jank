@@ -5,6 +5,8 @@
 #if PLATFORM_POSIX
 # include <pthread.h>
 
+#define GFX_PRESENT_THREAD 0 && !PLATFORM_HTML5
+
 class SyncEvent {
   pthread_mutex_t mutex;
   pthread_cond_t cond;
@@ -57,22 +59,30 @@ public:
     WaitForSingleObject(handle, INFINITE);
   }
 };
+#elif PLATFORM_HTML5
+// No implementation ?
 #else
 # error TODO Implement SyncEvent for the target platform
 #endif
 
 class OpenGL {
 public:
+#if GFX_PRESENT_THREAD
   SyncEvent renderReady;
   SyncEvent presentReady;
+#endif
 
   f32 width;
   f32 height;
   f32 dpi;
 
-  OpenGL() : renderReady(true), width(0), height(0), dpi(1) {}
+  OpenGL() :
+#if GFX_PRESENT_THREAD
+    renderReady(true),
+#endif
+    width(0), height(0), dpi(1) {}
 
-  virtual void* getProcAddress(char const* name) { ASSERT(0); UNREACHABLE; }
+  virtual void* getProcAddress(char const* name UNUSED) { ASSERT(0); UNREACHABLE; }
 
   virtual void present() {}
 

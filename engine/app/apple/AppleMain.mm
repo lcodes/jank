@@ -47,11 +47,14 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
                                     void*              context     UNUSED)
 {
   //LOG(App, Info, "DisplayLink Callback (time=%lu)", (outputTime->hostTime - now->hostTime)/1000000);
-  auto ctx{reinterpret_cast<MacOSOpenGL*>(context)};
-  ctx->presentReady.wait(); // TODO timeout to support frame skips
-  LOG(App, Info, "PRESENT READY");
-  [ctx->context flushBuffer];
-  ctx->renderReady.set();
+  auto gl{reinterpret_cast<MacOSOpenGL*>(context)};
+#if GFX_PRESENT_THREAD
+  gl->presentReady.wait(); // TODO timeout to support frame skips
+  gl->present();
+  gl->renderReady.set();
+#else
+  renderMain(context);
+#endif
   return kCVReturnSuccess;
 }
 
@@ -325,7 +328,11 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
   [window makeKeyAndOrderFront:self];
 #endif
 
-#if 0
+}
+
+- (void)applicationDidFinishLaunching:(NSNotification*)UNUSED notification {
+  [window makeKeyAndOrderFront:self];
+
   CVDisplayLinkRef displayLink;
   // TODO option to lock link to a single display,
   //      then call CVDisplayLinkGetCurrentCGDisplay once.
@@ -338,14 +345,11 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
   CVDisplayLinkStart(displayLink);
   //CVDisplayLinkStop(displayLink);
   //CVDisplayLinkRelease(displayLink);
-#endif
 
+#if GFX_PRESENT_THREAD
   pthread_t renderThread;
   pthread_create(&renderThread, nullptr, renderMain, &gl);
-}
-
-- (void)applicationDidFinishLaunching:(NSNotification*)UNUSED notification {
-  [window makeKeyAndOrderFront:self];
+#endif
 }
 
 - (void)applicationWillBecomeActive:(NSNotification*)UNUSED notification {
@@ -395,6 +399,10 @@ public:
   void makeCurrent() override {
     [EAGLContext setCurrentContext:context];
   }
+
+  void present() override {
+    //[context presentRenderbuffer:];
+  }
 };
 
 @interface EAGLView : UIView {
@@ -432,9 +440,13 @@ public:
 
 - (void)displayLinkCallback {
   LOG(App, Info, "Display link!");
+#if GFX_PRESENT_THREAD
   gl.presentReady.wait();
-  //[context presentRenderbuffer:];
+  gl.present();
   gl.renderReady.set();
+#else
+  renderMain(&gl);
+#endif
 }
 
 - (void)pause {
@@ -443,8 +455,10 @@ public:
 
 - (void)resume {
   // TODO only pause/resume here
+#if GFX_PRESENT_THREAD
   pthread_t renderThread;
   pthread_create(&renderThread, nullptr, renderMain, &gl);
+#endif
 
   displayLink = [self.window.screen displayLinkWithTarget:self selector:@selector(displayLinkCallback)];
   [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];

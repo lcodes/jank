@@ -22,7 +22,7 @@ DECL_LOG_SOURCE(Debug, Warn);
 
 /// Expensive assertion. Only enabled in debug builds.
 #if BUILD_DEBUG
-# define ASSERT_EX(...) assert(__VA_ARGS__)
+# define ASSERT_EX(...) ASSERT(__VA_ARGS__)
 #else
 # define ASSERT_EX(...) (static_cast<void>(0))
 #endif

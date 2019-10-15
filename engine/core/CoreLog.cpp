@@ -44,7 +44,7 @@ void log(char const* file, u32 line, char const* source, LogLevel level, char co
     // We want to issue a single call to android's log API.
     // So we first format the user's message and then log it with the file and line.
     char buf[1024];
-    auto count{vsnprintf(buf, sizeof(buf), fmt, args)};
+    auto count{ vsnprintf(buf, sizeof(buf), fmt, args) };
     if (count < 0) abort(); // TODO: better handling?
     if (count < static_cast<i32>(sizeof(buf))) {
       __android_log_print(getPriority(level), source, fmtFull, count, buf, file, line);
@@ -53,7 +53,7 @@ void log(char const* file, u32 line, char const* source, LogLevel level, char co
       // Stack buffer wasn't large enough, fallback to heap memory.
       // This is expensive, especially since we already wrote to 'buf'.
       // However, this shouldn't happen very often, and only for development.
-      auto mem{reinterpret_cast<char*>(malloc(count))};
+      auto mem{ reinterpret_cast<char*>(malloc(count)) };
       if (!mem) abort();
       count = vsnprintf(mem, count, fmt, args);
       if (count < 0) abort();
@@ -97,7 +97,7 @@ static char const* prettyLevel(LogLevel level) {
 }
 
 void log(char const* source, LogLevel level, char const* fmt, ...) {
-  auto stream{getStream(level)};
+  auto stream{ getStream(level) };
   WITH_VA({
     SYNCHRONIZED();
     fprintf(stream, "[%s] %s: ", source, prettyLevel(level));
@@ -108,7 +108,7 @@ void log(char const* source, LogLevel level, char const* fmt, ...) {
 
 #if BUILD_DEVELOPMENT
 void log(char const* file, u32 line, char const* source, LogLevel level, char const* fmt, ...) {
-  auto stream{getStream(level)};
+  auto stream{ getStream(level) };
   WITH_VA({
     SYNCHRONIZED();
     fprintf(stream, "[%s] %s: ", source, prettyLevel(level));

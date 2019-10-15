@@ -1,28 +1,142 @@
-#include "Core.hpp"
+#include "App.hpp"
 
 #include "GfxTest.hpp"
 
 #include <Windows.h>
+#include <GL/GL.h>
+#include <GL/wglext.h>
+
+#include <process.h>
+
+#define WGL_ARB_PROCS \
+  /* WGL_ARB_create_context */ \
+  GL(CREATECONTEXTATTRIBS, CreateContextAttribs); \
+  /* WGL_ARB_extensions_string */ \
+  GL(GETEXTENSIONSSTRING, GetExtensionsString); \
+  /* WGL_ARB_pixel_format */ \
+  GL(CHOOSEPIXELFORMAT, ChoosePixelFormat)
+
+#define GL(type, name) static PFNWGL##type##ARBPROC wgl##name##ARB
+WGL_ARB_PROCS;
+#undef GL
 
 class WindowsOpenGL : public OpenGL {
+public:
   HDC   dc;
   HGLRC context;
 
-public:
-  void clearCurrent() {
+  void* getProcAddress(char const* name) override {
+    return wglGetProcAddress(name);
+  }
+
+  void present() override {
+    SwapBuffers(dc);
+  }
+
+  void clearCurrent() override {
     wglMakeCurrent(nullptr, nullptr);
   }
 
-  void makeCurrent() {
+  void makeCurrent() override {
     wglMakeCurrent(dc, context);
+  }
+
+  double getDeltaTime() override {
+    return 0;
   }
 };
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE prevInstance, PWSTR cmdLine, int cmdShow) {
+static u32 renderMainWin(void* arg) {
+  renderMain(arg);
+  return 0;
+}
+
+static u32 presentMain(void* arg) {
+  auto gl{ reinterpret_cast<WindowsOpenGL*>(arg) };
+  while (true) {
+    gl->presentReady.wait();
+    gl->present();
+    gl->renderReady.set();
+  }
+  return 0;
+}
+
+static LRESULT wndProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) noexcept {
+  if (msg == WM_DESTROY) {
+    PostQuitMessage(0);
+  }
+  return DefWindowProcW(wnd, msg, w, l);
+}
+#include <io.h>
+#include <fcntl.h>
+#include <stdio.h>
+static void redirect(DWORD stdHandle, char const* mode, FILE* fp) {
+    auto std{ GetStdHandle(stdHandle) };
+    auto osf{ _open_osfhandle(reinterpret_cast<intptr_t>(std), _O_TEXT) };
+    auto fd { _fdopen(osf, mode) };
+    auto ret{ setvbuf(fd, nullptr, _IONBF, 0) };
+    ASSERT(ret == 0, "");
+    *fp = *fd;
+}
+
+extern void foo(int a, int b, ...);
+#define FOO(a, b, ...) foo(a, b, ##__VA_ARGS__)
+
+#if 1
+int WINAPI wWinMain(_In_     HINSTANCE instance,
+                    _In_opt_ HINSTANCE prevInstance,
+                    _In_     PWSTR cmdLine,
+                    _In_     int cmdShow)
+#else
+int main()
+#endif
+{
   // Parse args
+#if 0
+  AllocConsole();
+
+  CONSOLE_SCREEN_BUFFER_INFO info;
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
+  info.dwSize.Y = 1024;
+  SetConsoleScreenBufferSize(GetStdHandle(STD_OUTPUT_HANDLE), info.dwSize);
+
+  redirect(STD_OUTPUT_HANDLE, "w", stdout);
+  redirect(STD_ERROR_HANDLE, "w", stderr);
+  redirect(STD_INPUT_HANDLE, "r", stdin);
+  //ios::sync_with_stdio();
+  {
+    fprintf(stdout, "FOO HI\n");
+    fflush(stdout);
+  }
+  //LOG(App, Info, "Test");
+#endif
 
   // Create window
-#if 0
+  WNDCLASSEXW wc{ sizeof(wc) };
+  wc.style = CS_OWNDC;// CS_HREDRAW | CS_VREDRAW;
+  wc.lpfnWndProc = wndProc;
+  wc.hInstance = GetModuleHandleW(nullptr);
+  wc.hIcon = LoadIconW(wc.hInstance, MAKEINTRESOURCEW(2));
+  wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+  wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BACKGROUND + 1);
+  wc.lpszClassName = L"OpenGL";
+  wc.hIconSm = wc.hIcon;
+
+  auto classAtom = reinterpret_cast<LPCWSTR>(RegisterClassExW(&wc));
+
+  auto styleEx = WS_EX_APPWINDOW;
+  auto style = WS_OVERLAPPEDWINDOW;
+  auto wnd = CreateWindowEx(styleEx, classAtom, TEXT(""), style,
+                          CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+                          nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+
+  ShowWindow(wnd, SW_SHOWDEFAULT);
+
+  WindowsOpenGL gl;
+  gl.width = 800;
+  gl.height = 600;
+  gl.dc = GetDC(wnd);
+
   PIXELFORMATDESCRIPTOR pfd{};
   pfd.nSize = 1;
   pfd.nVersion = 1;
@@ -31,21 +145,82 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE prevInstance, PWSTR cmdLine, i
   pfd.cColorBits = 32;
   pfd.iLayerType = PFD_MAIN_PLANE;
 
-  auto format{ ChoosePixelFormat(dc, &pfd) };
-  SetPixelFormat(dc, format, &pfd);
+  auto format{ ChoosePixelFormat(gl.dc, &pfd) };
+  SetPixelFormat(gl.dc, format, &pfd);
 
-  auto gl{ wglCreateContext(dc) };
+  gl.context = wglCreateContext(gl.dc);
+  gl.makeCurrent();
 
-  wglGetProcAddress("");
-#endif
+#define GL(type, name) wgl##name##ARB = reinterpret_cast<PFNWGL##type##ARBPROC>(wglGetProcAddress("wgl" #name "ARB"))
+  WGL_ARB_PROCS;
+#undef GL
+
+  auto whee = glGetString(GL_EXTENSIONS); // deprecated in 3.0, removed in 3.1
+  auto exts = wglGetExtensionsStringARB(gl.dc);
+
+  LOG(App, Info, "Fake Context Core extensions: %s", whee);
+  LOG(App, Info, "Fake Context WGL extensions: %s", exts);
+  LOG(App, Info, "Fake Context Version: %s", glGetString(GL_VERSION));
+  LOG(App, Info, "Fake Context Vendor: %s", glGetString(GL_VENDOR));
+  LOG(App, Info, "Fake Context Renderer: %s", glGetString(GL_RENDERER));
+  //LOG(App, Info, "Fake Context GLSL: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
+
+  wglDeleteContext(gl.context);
+  //ReleaseDC(wnd, gl.dc);
+
+  // TODO debug context, forward compatible
+  u32 numFormats;
+  i32 formatAttrs[]{
+    WGL_SUPPORT_OPENGL_ARB, true,
+    WGL_DRAW_TO_WINDOW_ARB, true,
+    WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+    WGL_COLOR_BITS_ARB, 24,
+    WGL_DEPTH_BITS_ARB, 0,
+    WGL_STENCIL_BITS_ARB, 0,
+    WGL_DOUBLE_BUFFER_ARB, true,
+    WGL_SWAP_METHOD_ARB, WGL_SWAP_EXCHANGE_ARB,
+    WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+    0
+  };
+  wglChoosePixelFormatARB(gl.dc, formatAttrs, nullptr, 1, &format, &numFormats);
+  SetPixelFormat(gl.dc, format, &pfd);
+
+  i32 contextAttrs[]{
+    WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
+    WGL_CONTEXT_MINOR_VERSION_ARB, 6,
+    WGL_CONTEXT_FLAGS_ARB, 0,
+    0
+  };
+  gl.context = wglCreateContextAttribsARB(gl.dc, nullptr, contextAttrs);
+  gl.makeCurrent();
+
+  exts = wglGetExtensionsStringARB(gl.dc);
+
+  LOG(App, Info, "WGL extensions: %s", exts);
+  LOG(App, Info, "Version: %s", glGetString(GL_VERSION));
+  LOG(App, Info, "Vendor: %s", glGetString(GL_VENDOR));
+  LOG(App, Info, "Renderer: %s", glGetString(GL_RENDERER));
+
+  gl.clearCurrent();
+
+  _beginthreadex(nullptr, 0, renderMainWin, &gl, 0, nullptr);
+  _beginthreadex(nullptr, 0, presentMain, &gl, 0, nullptr);
+
   MSG msg;
-  while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
-    if (msg.message == WM_QUIT) {
-      break;
+  auto running{ true };
+  while (running) {
+    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+      if (msg.message == WM_QUIT) {
+        running = false;
+        break;
+      }
+
+      TranslateMessage(&msg);
+      DispatchMessageW(&msg);
     }
 
-    TranslateMessage(&msg);
-    DispatchMessageW(&msg);
+    // TODO run
+    Sleep(10);
   }
 
   // Terminate

@@ -20,6 +20,7 @@ void assertFailure(char const* file, u32 line, char const* fmt, ...) {
   if (vsnprintf(buf, sizeof(buf), fmt, args) >= 0) {
     log(file, line, LOG_SOURCE(Debug).name, LogLevel::Assert, buf);
   }
+  __debugbreak();
   abort();
   va_end(args);
 }

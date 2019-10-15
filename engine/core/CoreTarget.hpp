@@ -78,6 +78,22 @@
 # define COMPILER_EMSCRIPTEN 0
 #endif
 
+#if COMPILER_MSVC && defined(_MSVC_LANG)
+# define LANGUAGE_VERSION _MSVC_LANG
+#elif defined(__cplusplus)
+# define LANGUAGE_VERSION __cplusplus
+#else
+# define LANGUAGE_VERSION 0L
+#endif
+
+#if LANGUAGE_VERSION < 201703L
+# error A C++17 compiler is required.
+#endif
+
+// TODO doesnt work even with switch present?
+//#if COMPILER_MSVC && defined(_MSVC_TRADITIONAL) && _MSVC_TRADITIONAL
+//# error "/experimental:preprocessor" is required for MSVC
+//#endif
 
 // Platform
 // -----------------------------------------------------------------------------
@@ -215,18 +231,6 @@
 
 // Attributes
 // -----------------------------------------------------------------------------
-
-#if COMPILER_MSVC && defined(_MSVC_LANG)
-# define LANGUAGE_VERSION _MSVC_LANG
-#elif defined(__cplusplus)
-# define LANGUAGE_VERSION __cplusplus
-#else
-# define LANGUAGE_VERSION 0L
-#endif
-
-#if LANGUAGE_VERSION < 201703L
-# error A C++17 compiler is required.
-#endif
 
 #define FALLTHROUGH  [[fallthrough]]
 #define UNUSED       [[maybe_unused]]

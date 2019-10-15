@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CoreTypes.hpp"
+#include "Core.hpp"
 
 #if PLATFORM_POSIX
 # include <pthread.h>
@@ -71,6 +71,8 @@ public:
   f32 dpi;
 
   OpenGL() : renderReady(true), width(0), height(0), dpi(1) {}
+
+  virtual void* getProcAddress(char const* name) { ASSERT(0); UNREACHABLE; }
 
   virtual void present() {}
 

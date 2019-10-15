@@ -20,12 +20,96 @@
 # include <OpenGLES/ES3/glext.h>
 #elif PLATFORM_WINDOWS
 # include <gl/GL.h>
+# include <GL/glcorearb.h>
 #else
 # error Don't know how to include OpenGL for the target platform
 #endif
 
 DECL_LOG_SOURCE(GfxTest, Info);
-#if !PLATFORM_WINDOWS
+
+#if PLATFORM_WINDOWS
+
+#define GL1_2_PROCS \
+  GL(TEXIMAGE3D, TexImage3D); \
+  GL(TEXSUBIMAGE3D, TexSubImage3D)
+
+#define GL1_3_PROCS \
+  GL(COMPRESSEDTEXIMAGE1D, CompressedTexImage1D); \
+  GL(COMPRESSEDTEXIMAGE2D, CompressedTexImage2D); \
+  GL(COMPRESSEDTEXIMAGE3D, CompressedTexImage3D); \
+  GL(COMPRESSEDTEXSUBIMAGE1D, CompressedTexSubImage1D); \
+  GL(COMPRESSEDTEXSUBIMAGE2D, CompressedTexSubImage2D); \
+  GL(COMPRESSEDTEXSUBIMAGE3D, CompressedTexSubImage3D)
+
+#define GL1_4_PROCS \
+  GL(BLENDEQUATION, BlendEquation)
+
+#define GL1_5_PROCS \
+  GL(BINDBUFFER, BindBuffer); \
+  GL(BUFFERDATA, BufferData); \
+  GL(BUFFERSUBDATA, BufferSubData); \
+  GL(DELETEBUFFERS, DeleteBuffers); \
+  GL(GENBUFFERS, GenBuffers)
+
+#define GL2_0_PROCS \
+  GL(ATTACHSHADER, AttachShader); \
+  GL(COMPILESHADER, CompileShader); \
+  GL(CREATEPROGRAM, CreateProgram); \
+  GL(CREATESHADER, CreateShader); \
+  GL(DELETEPROGRAM, DeleteProgram); \
+  GL(DELETESHADER, DeleteShader); \
+  GL(ENABLEVERTEXATTRIBARRAY, EnableVertexAttribArray); \
+  GL(GETPROGRAMINFOLOG, GetProgramInfoLog); \
+  GL(GETPROGRAMIV, GetProgramiv); \
+  GL(GETSHADERINFOLOG, GetShaderInfoLog); \
+  GL(GETSHADERIV, GetShaderiv); \
+  GL(GETUNIFORMLOCATION, GetUniformLocation); \
+  GL(LINKPROGRAM, LinkProgram); \
+  GL(SHADERSOURCE, ShaderSource); \
+  GL(UNIFORM1I, Uniform1i); \
+  GL(UNIFORMMATRIX4FV, UniformMatrix4fv); \
+  GL(USEPROGRAM, UseProgram); \
+  GL(VERTEXATTRIBPOINTER, VertexAttribPointer)
+
+#define GL3_0_PROCS \
+  GL(BINDRENDERBUFFER, BindRenderbuffer); \
+  GL(BINDFRAMEBUFFER, BindFramebuffer); \
+  GL(BINDVERTEXARRAY, BindVertexArray); \
+  GL(BLITFRAMEBUFFER, BlitFramebuffer); \
+  GL(CHECKFRAMEBUFFERSTATUS, CheckFramebufferStatus); \
+  GL(DELETEFRAMEBUFFERS, DeleteFramebuffers); \
+  GL(DELETERENDERBUFFERS, DeleteRenderbuffers); \
+  GL(DELETEVERTEXARRAYS, DeleteVertexArrays); \
+  GL(FRAMEBUFFERTEXTURE2D, FramebufferTexture2D); \
+  GL(GENFRAMEBUFFERS, GenFramebuffers); \
+  GL(GENRENDERBUFFERS, GenRenderbuffers); \
+  GL(GENVERTEXARRAYS, GenVertexArrays); \
+  GL(GETSTRINGI, GetStringi)
+
+#define GL3_1_PROCS \
+
+#define GL3_2_PROCS \
+  GL(DRAWELEMENTSBASEVERTEX, DrawElementsBaseVertex)
+
+#define GL3_3_PROCS \
+  GL(DELETESAMPLERS, DeleteSamplers); \
+  GL(GENSAMPLERS, GenSamplers)
+
+// TODO GL4
+
+#define GL(type, name) static PFNGL##type##PROC gl##name
+GL1_2_PROCS;
+GL1_3_PROCS;
+GL1_4_PROCS;
+GL1_5_PROCS;
+GL2_0_PROCS;
+GL3_0_PROCS;
+GL3_1_PROCS;
+GL3_2_PROCS;
+GL3_3_PROCS;
+#undef GL
+
+#endif
 
 // OpenGL Helpers
 // -----------------------------------------------------------------------------
@@ -41,7 +125,7 @@ static void glCheck() {
       E(OUT_OF_MEMORY);
       E(INVALID_FRAMEBUFFER_OPERATION);
 #undef E
-    default: ASSERT(0, "Unknown GL Error: %04x", e);
+    default: ASSERT(0, "Unknown GL Error: %04x", e); UNREACHABLE;
     }
     ASSERT(0, str);
   }
@@ -56,34 +140,30 @@ static void glCheckFramebuffer() {
       //E(INCOMPLETE_DIMENSIONS);
       E(INCOMPLETE_MISSING_ATTACHMENT);
       E(UNSUPPORTED);
-    default: ASSERT(0, "Unknown GL Framebuffer Error: %04x", e);
+    default: ASSERT(0, "Unknown GL Framebuffer Error: %04x", e); UNREACHABLE;
 #undef E
     }
     ASSERT(0, str);
   }
 }
 
-using get_t = decltype(glGetShaderiv);
-using get_info_log_t = decltype(glGetShaderInfoLog);
-
-template<get_t get, get_info_log_t getInfoLog, i32 status>
-static void glCheckInfoLog(u32 object) {
-  i32 success;
-  get(object, status, &success);
-  if (!success) {
-    i32 size;
-    get(object, GL_INFO_LOG_LENGTH, &size);
-    std::string s;
-    s.resize(size);
-    getInfoLog(object, size, nullptr, s.data());
-    LOG(App, Error, "Failed:\n%.*s", size, s.data());
-    ASSERT(0);
+#define GL_CHECK_INFO_LOG(name, get, getInfoLog, status, action) \
+  static void name(u32 object) { \
+    i32 success; \
+    get(object, status, &success); \
+    if (!success) { \
+      i32 size; \
+      get(object, GL_INFO_LOG_LENGTH, &size); \
+      std::string s; \
+      s.resize(size); \
+      getInfoLog(object, size, nullptr, s.data()); \
+      LOG(App, Error, "Failed to " action ":\n%.*s", size, s.data()); \
+      ASSERT(0); \
+    } \
   }
-}
-
-#define glCheckShader(x)  glCheckInfoLog<glGetShaderiv, glGetShaderInfoLog, GL_COMPILE_STATUS>(x)
-#define glCheckProgram(x) glCheckInfoLog<glGetProgramiv, glGetProgramInfoLog, GL_LINK_STATUS>(x)
-
+GL_CHECK_INFO_LOG(glCheckShader,  glGetShaderiv,  glGetShaderInfoLog,  GL_COMPILE_STATUS, "compile shader")
+GL_CHECK_INFO_LOG(glCheckProgram, glGetProgramiv, glGetProgramInfoLog, GL_LINK_STATUS,    "link program")
+#undef GL_CHECK_INFO_LOG
 
 // OpenGL + ImGui test
 // -----------------------------------------------------------------------------
@@ -100,13 +180,30 @@ void* renderMain(void* arg) {
   auto gl{reinterpret_cast<OpenGL*>(arg)};
   gl->makeCurrent();
 
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGui::StyleColorsDark();
-
   LOG(App, Info, "OpenGL Version %s", glGetString(GL_VERSION));
   LOG(App, Info, "OpenGL Vendor: %s", glGetString(GL_VENDOR));
   LOG(App, Info, "OpenGL Renderer: %s", glGetString(GL_RENDERER));
+
+  i32 numExts;
+  glGetIntegerv(GL_NUM_EXTENSIONS, &numExts);
+
+#if PLATFORM_WINDOWS
+#define GL(type, name) gl##name = reinterpret_cast<PFNGL##type##PROC>(gl->getProcAddress("gl" #name))
+  GL1_2_PROCS;
+  GL1_3_PROCS;
+  GL1_4_PROCS;
+  GL1_5_PROCS;
+  GL2_0_PROCS;
+  GL3_0_PROCS;
+  GL3_1_PROCS;
+  GL3_2_PROCS;
+  GL3_3_PROCS;
+#undef GL
+#endif
+
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGui::StyleColorsDark();
 
   u32 fbo, tex;
   glGenFramebuffers(1, &fbo);
@@ -300,15 +397,8 @@ void* renderMain(void* arg) {
     auto width {static_cast<GLsizei>(drawData->DisplaySize.x * scale.x)};
     auto height{static_cast<GLsizei>(drawData->DisplaySize.y * scale.y)};
 
-#if 0
-    gl->renderReady.wait();
-    LOG(GfxTest, Info, "RENDER READY");
-#if PLATFORM_ANDROID
-    gl->makeCurrent();
-#endif
-#endif
-
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(r, g, b, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     glCheck();
@@ -374,7 +464,7 @@ void* renderMain(void* arg) {
 #else
     int vtxOffset = 0, idxOffset = 0;
 #endif
-#if 1 || !PLATFORM_MACOS
+#if 1
     for (auto n{0}; n < drawData->CmdListsCount; n++) {
       auto cmd{drawData->CmdLists[n]};
       glBufferData(GL_ARRAY_BUFFER, cmd->VtxBuffer.Size * sizeof(ImDrawVert), cmd->VtxBuffer.Data, GL_STREAM_DRAW);
@@ -388,7 +478,7 @@ void* renderMain(void* arg) {
         auto clipZ{(draw->ClipRect.z - offset.x) * scale.x};
         auto clipW{(draw->ClipRect.w - offset.y) * scale.y};
 
-        if (false && clipX < width && clipY < height && clipZ >= 0 && clipW >= 0) {
+        if (clipX < width && clipY < height && clipZ >= 0 && clipW >= 0) {
           glScissor(clipX, height - clipW, clipZ - clipX, clipW - clipY);
           glBindTexture(GL_TEXTURE_2D, static_cast<u32>(reinterpret_cast<usize>(draw->TextureId)));
           glDrawElements/*BaseVertex*/(GL_TRIANGLES, draw->ElemCount,
@@ -412,14 +502,22 @@ void* renderMain(void* arg) {
     glBindVertexArray(0);
     glUseProgram(0);
 
-    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBlitFramebuffer(0, 0, 0, 0, 800, 600, 800, 600, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+#if 1
+    gl->renderReady.wait();
+#if PLATFORM_ANDROID
+    gl->makeCurrent();
+#endif
+#endif
 
-#if 0
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, 800, 600, 0, 0, 800, 600, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+#if 1
 #if PLATFORM_ANDROID
     gl->clearCurrent();
 #endif
+    //glFlush();
     gl->presentReady.set();
 #else
     gl->present();
@@ -431,4 +529,3 @@ void* renderMain(void* arg) {
 
   return nullptr;
 }
-#endif

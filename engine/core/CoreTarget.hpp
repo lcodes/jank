@@ -299,6 +299,8 @@
 #endif
 
 #if COMPILER_CLANG
+# pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
 # pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+# pragma clang diagnostic ignored "-Wnested-anon-types"
 #endif
 

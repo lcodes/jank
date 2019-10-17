@@ -34,5 +34,21 @@ void assertFailure(char const* file, u32 line);
 void assertFailure(char const* file, u32 line, char const* fmt, ...);
 #endif
 
-// TODO: breakpoints
+/// Break into the debugger
+#if BUILD_DEBUG
+# if COMPILER_MSVC
+#  define BREAKPOINT() __debugbreak()
+# elif COMPILER_EMSCRIPTEN
+#  include <emscripten.h>
+#  define BREAKPOINT() emscripten_debugger()
+# elif PLATFORM_POSIX
+#  include <signal.h>
+#  define BREAKPOINT() raise(SIGINT)
+# else
+#  define BREAKPOINT()
+# endif
+#else
+# define BREAKPOINT()
+#endif
+
 // TODO: check if a debugger is present

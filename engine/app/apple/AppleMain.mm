@@ -1,8 +1,60 @@
 #include "App.hpp"
 
 #import <CoreFoundation/CoreFoundation.h>
+#import <GameController/GameController.h>
 
 #include "GfxTest.hpp"
+
+class AppleController {
+public:
+  GCController* controller;
+};
+
+DECL_LOG_SOURCE(Input, Info);
+
+@interface ControllerHandler : NSObject
+@end
+
+@implementation ControllerHandler
+
+- (instancetype)init {
+  if (self = [super init]) {
+    auto nc{ [NSNotificationCenter defaultCenter] };
+    [nc addObserver:self
+           selector:@selector(controllerDidConnect:)
+               name:GCControllerDidConnectNotification
+             object:nil];
+    [nc addObserver:self
+           selector:@selector(controllerDidDisconnect:)
+               name:GCControllerDidDisconnectNotification
+             object:nil];
+  }
+  return self;
+}
+
+- (void)controllerDidConnect:(NSNotification*)notification {
+  auto ctrl{ static_cast<GCController*>(notification.object) };
+  LOG(Input, Info, "Controller connected: %s", ctrl.vendorName.UTF8String);
+
+  if (ctrl.extendedGamepad) {
+  }
+  else if (ctrl.microGamepad) {
+  }
+
+  if (ctrl.motion) {
+    ctrl.motion.valueChangedHandler = ^(GCMotion* motion) {
+      //LOG(Input, Info, "Motion: %lf %lf %lf %lf", motion.attitude.x, motion.attitude.y, motion.attitude.z, motion.attitude.w);
+      LOG(Input, Info, "Accel %lf %lf %lf", motion.userAcceleration.x, motion.userAcceleration.y, motion.userAcceleration.z);
+    };
+  }
+}
+
+- (void)controllerDidDisconnect:(NSNotification*)notification {
+  auto ctrl{ static_cast<GCController*>(notification.object) };
+  LOG(Input, Info, "Controller disconnected: %s", ctrl.vendorName.UTF8String);
+}
+
+@end
 
 class AppleOpenGL : public OpenGL {
 public:
@@ -10,8 +62,8 @@ public:
 
   AppleOpenGL() : currentTime(CFAbsoluteTimeGetCurrent()) {}
 
-  double getDeltaTime() override {
-    auto now{CFAbsoluteTimeGetCurrent()};
+  f64 getDeltaTime() override {
+    auto now{ CFAbsoluteTimeGetCurrent() };
     auto delta{now - currentTime};
     currentTime = now;
     return delta;
@@ -47,7 +99,7 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
                                     void*              context     UNUSED)
 {
   //LOG(App, Info, "DisplayLink Callback (time=%lu)", (outputTime->hostTime - now->hostTime)/1000000);
-  auto gl{reinterpret_cast<MacOSOpenGL*>(context)};
+  auto gl{ reinterpret_cast<MacOSOpenGL*>(context) };
 #if GFX_PRESENT_THREAD
   gl->presentReady.wait(); // TODO timeout to support frame skips
   gl->present();
@@ -97,10 +149,10 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
 {
   ASSERT(context == gl->context);
   ASSERT(format == gl->format);
-  auto canDraw{[super canDrawInOpenGLContext:context
-                                 pixelFormat:format
-                                forLayerTime:t
-                                 displayTime:ts]};
+  auto canDraw{ [super canDrawInOpenGLContext:context
+                                  pixelFormat:format
+                                 forLayerTime:t
+                                  displayTime:ts] };
   if (canDraw) {
     // TODO LOCK
     return YES;
@@ -234,6 +286,8 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
   MacOSOpenGL gl;
   NSWindow*   window;
   NSView*     view;
+
+  ControllerHandler* controllerHandler;
 }
 @end
 
@@ -277,6 +331,8 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
 }
 
 - (void)applicationWillFinishLaunching:(NSNotification*)UNUSED notification {
+  controllerHandler = [ControllerHandler new];
+
   NSOpenGLPixelFormatAttribute attrs[]{
     NSOpenGLPFADoubleBuffer,
     NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion4_1Core,
@@ -302,8 +358,8 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
 
   gl.width = 800;
   gl.height = 600;
-  auto frame{NSMakeRect(100, 100, gl.width, gl.height)};
-  auto glView{[[OpenGLView alloc] initWithFrame:frame GL:&gl]};
+  auto frame { NSMakeRect(100, 100, gl.width, gl.height) };
+  auto glView{ [[OpenGLView alloc] initWithFrame:frame GL:&gl] };
   self->view   = glView;
   self->window = [[NSWindow alloc] initWithContentRect:frame
                                              styleMask:styleMask
@@ -386,11 +442,15 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef   displayLink UNUSED,
 
 #import <UIKit/UIKit.h>
 
+# include <OpenGLES/ES3/gl.h>
+
 @class EAGLView;
 
 class IphoneOpenGL : public AppleOpenGL {
 public:
   EAGLContext* context;
+  u32 fboSurface;
+  u32 rboSurface;
 
   void clearCurrent() override {
     [EAGLContext setCurrentContext:nil];
@@ -401,7 +461,13 @@ public:
   }
 
   void present() override {
-    //[context presentRenderbuffer:];
+    glBindRenderbuffer(GL_RENDERBUFFER, rboSurface);
+    auto result{ [context presentRenderbuffer:GL_RENDERBUFFER] };
+    ASSERT(result);
+  }
+
+  u32 getSurface() override {
+    return fboSurface;
   }
 };
 
@@ -424,7 +490,7 @@ public:
     gl.width  = static_cast<u32>(frame.size.width);
     gl.height = static_cast<u32>(frame.size.height);
 
-    auto eaglLayer{static_cast<CAEAGLLayer*>(self.layer)};
+    auto eaglLayer{ static_cast<CAEAGLLayer*>(self.layer) };
     eaglLayer.opaque = YES;
     eaglLayer.drawableProperties = [NSDictionary dictionaryWithObjectsAndKeys:
                                     [NSNumber numberWithBool:NO], kEAGLDrawablePropertyRetainedBacking,
@@ -434,14 +500,26 @@ public:
     gl.context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
     ASSERT(gl.context, "Failed to create GLES3 context");
 
+    gl.makeCurrent();
+    glGenFramebuffers(1, &gl.fboSurface);
+    glGenRenderbuffers(1, &gl.rboSurface);
+    glBindFramebuffer(GL_FRAMEBUFFER, gl.fboSurface);
+    glBindRenderbuffer(GL_RENDERBUFFER, gl.rboSurface);
+
+    // TODO iphone 6 display hack
+
+    auto result{ [gl.context renderbufferStorage:GL_RENDERBUFFER fromDrawable:eaglLayer] };
+    ASSERT(result);
+
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, gl.rboSurface);
   }
   return self;
 }
 
 - (void)displayLinkCallback {
-  LOG(App, Info, "Display link!");
 #if GFX_PRESENT_THREAD
   gl.presentReady.wait();
+  gl.makeCurrent();
   gl.present();
   gl.renderReady.set();
 #else
@@ -477,6 +555,8 @@ public:
   UIWindow* window;
   EAGLView* view;
   ViewController* viewController;
+
+  ControllerHandler* controllerHandler;
 }
 @end
 
@@ -486,6 +566,14 @@ public:
 willFinishLaunchingWithOptions:(NSDictionary<UIApplicationLaunchOptionsKey, id>*)UNUSED launchOptions
 {
   LOG(App, Info, "willFinishLaunching");
+  controllerHandler = [ControllerHandler new];
+
+  auto mainFrame{ [[UIScreen mainScreen] bounds] };
+  window = [[UIWindow alloc] initWithFrame:mainFrame];
+  view   = [[EAGLView alloc] initWithFrame:mainFrame];
+
+  viewController = [ViewController new];
+  [window setRootViewController:viewController];
   return YES;
 }
 
@@ -493,12 +581,6 @@ willFinishLaunchingWithOptions:(NSDictionary<UIApplicationLaunchOptionsKey, id>*
 didFinishLaunchingWithOptions:(NSDictionary<UIApplicationLaunchOptionsKey, id>*)UNUSED launchOptions
 {
   LOG(App, Info, "didFinishLaunching");
-  auto mainFrame{[[UIScreen mainScreen] bounds]};
-  window = [[UIWindow alloc] initWithFrame:mainFrame];
-  view   = [[EAGLView alloc] initWithFrame:mainFrame];
-
-  viewController = [ViewController new];
-  [window setRootViewController:viewController];
 
   [window addSubview:view];
   [window makeKeyAndVisible];

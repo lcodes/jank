@@ -5,7 +5,7 @@
 #if PLATFORM_POSIX
 # include <pthread.h>
 
-#define GFX_PRESENT_THREAD 0 && !PLATFORM_HTML5
+#define GFX_PRESENT_THREAD 1 && !PLATFORM_HTML5
 
 class SyncEvent {
   pthread_mutex_t mutex;
@@ -89,7 +89,11 @@ public:
   virtual void clearCurrent() = 0;
   virtual void makeCurrent() = 0;
 
-  virtual double getDeltaTime() = 0;
+  virtual f64 getDeltaTime() = 0;
+
+#if PLATFORM_IPHONE
+  virtual u32 getSurface() = 0;
+#endif
 };
 
 void* renderMain(void* arg);

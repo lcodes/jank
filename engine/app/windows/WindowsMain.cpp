@@ -41,7 +41,7 @@ public:
     wglMakeCurrent(dc, context);
   }
 
-  double getDeltaTime() override {
+  f64 getDeltaTime() override {
     return 0;
   }
 };

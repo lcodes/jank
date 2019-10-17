@@ -10,6 +10,10 @@
 
 #include <EGL/egl.h>
 
+class AndroidController {
+
+};
+
 static double getTime() {
   timespec time;
   clock_gettime(CLOCK_MONOTONIC, &time);
@@ -26,7 +30,7 @@ public:
   EGLSurface surface;
   EGLContext context;
 
-  double currentTime;
+  f64 currentTime;
 
   void init(android_app* app) {
     currentTime = getTime();
@@ -80,7 +84,7 @@ public:
   }
 
   void present() override {
-    auto result{eglSwapBuffers(gl->display, gl->surface)};
+    auto result{eglSwapBuffers(display, surface)};
     ASSERT(result);
   }
 
@@ -94,7 +98,7 @@ public:
     ASSERT(result);
   }
 
-  double getDeltaTime() override {
+  f64 getDeltaTime() override {
     auto now{getTime()};
     auto delta{now - currentTime};
     currentTime = now;
@@ -172,20 +176,28 @@ static void jank_android_onAppCmd(android_app* app, i32 cmd) {
     break;
   }
 }
-
+DECL_LOG_SOURCE(Input, Info);
 static i32 jank_android_onInputEvent(android_app* app UNUSED, AInputEvent* event) {
-  switch (AInputEvent_getType(event)) {
-  case AINPUT_EVENT_TYPE_KEY:
-    AKeyEvent_getKeyCode(event);
-    return true;
+  LOG(Input, Info, "Device ID: %i", AInputEvent_getDeviceId(event));
+  auto src{ AInputEvent_getSource(event) };
 
-  case AINPUT_EVENT_TYPE_MOTION:
-    // auto pointerCount{AMotionEvent_getPointerCount(event)};
-    AMotionEvent_getX(event, 0);
-    AMotionEvent_getY(event, 0);
+  switch (AInputEvent_getType(event)) {
+  case AINPUT_EVENT_TYPE_KEY: {
+    auto k = AKeyEvent_getKeyCode(event);
+    LOG(Input, Info, "Input Key: %d", k);
     return true;
+  }
+
+  case AINPUT_EVENT_TYPE_MOTION: {
+    // auto pointerCount{AMotionEvent_getPointerCount(event)};
+    auto x = AMotionEvent_getX(event, 0);
+    auto y = AMotionEvent_getY(event, 0);
+    LOG(Input, Info, "Input Motion: %f %f", x, y);
+    return true;
+  }
 
   default:
+    LOG(Input, Debug, "Missed event");
     return false;
   }
 }
@@ -247,9 +259,11 @@ void android_main(android_app* app) {
 
   android_poll_source* source;
   i32 result;
+  i32 events;
+  int fds;
 
   while (true) {
-    while ((result = ALooper_pollAll(0, nullptr, nullptr, reinterpret_cast<void**>(&source))) > 0) {
+    while ((result = ALooper_pollAll(0, &fds, &events, reinterpret_cast<void**>(&source))) > 0) {
       if (source) {
         source->process(app, source);
       }

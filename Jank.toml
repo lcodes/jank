@@ -19,7 +19,15 @@ sources = ["engine/**/*",
            # "external/fmt/include/fmt/*.h",
            # "external/fmt/src/*.cc",
            "external/imgui/*.h",
-           "external/imgui/*.cpp"]
+           "external/imgui/*.cpp",
+           "external/Box2D/Box2D/**/*"
+           ]
+
+include_dirs = ["external/EGL-Registry/api",
+                "external/OpenGL-Registry/api",
+                "external/Box2D",
+                # "external/chibi-scheme/include"
+                ]
 
 [targets.JankEngine.filters]
 "engine/app/android" = ["Android"]

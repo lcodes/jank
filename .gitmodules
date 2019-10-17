@@ -2,6 +2,10 @@
 	path = external/janky
 	url = git@github.com:lcodes/janky.git
 
+[submodule "external/assimp"]
+	path = external/assimp
+	url = git@github.com:assimp/assimp.git
+
 [submodule "external/EGL-Registry"]
 	path = external/EGL-Registry
 	url = git@github.com:KhronosGroup/EGL-Registry.git
@@ -9,6 +13,18 @@
 [submodule "external/OpenGL-Registry"]
 	path = external/OpenGL-Registry
 	url = git@github.com:KhronosGroup/OpenGL-Registry.git
+
+[submodule "external/rtm"]
+	path = external/rtm
+	url = git@github.com:nfrechette/rtm.git
+
+[submodule "external/Box2D"]
+	path = external/Box2D
+	url = git@github.com:erincatto/Box2D.git
+
+[submodule "external/bullet3"]
+	path = external/bullet3
+	url = git@github.com:bulletphysics/bullet3.git
 
 [submodule "external/imgui"]
 	path = external/imgui

@@ -1,9 +1,8 @@
-#include "App.hpp"
+#include "app/App.hpp"
+#include "app/GfxTest.hpp"
 
 #import <CoreFoundation/CoreFoundation.h>
 #import <GameController/GameController.h>
-
-#include "GfxTest.hpp"
 
 class AppleController {
 public:

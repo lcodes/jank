@@ -1,4 +1,4 @@
-#include "CoreTypes.hpp"
+#include "core/CoreTypes.hpp"
 
 #if PLATFORM_MACOS
 

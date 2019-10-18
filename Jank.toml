@@ -9,8 +9,6 @@ min_janky_version = "0.1.0"
 c_standard   = 11
 cxx_standard = 17
 
-# TODO exclude build sources by target, but still show them in generated xcode/vs projects
-
 [targets.JankEngine]
 type = "Application"
 
@@ -23,8 +21,11 @@ sources = ["engine/**/*",
            "external/Box2D/Box2D/**/*"
            ]
 
-include_dirs = ["external/EGL-Registry/api",
+include_dirs = ["engine",
+                "external/EGL-Registry/api",
                 "external/OpenGL-Registry/api",
+                "external/rtm/includes",
+                "external/imgui",
                 "external/Box2D",
                 # "external/chibi-scheme/include"
                 ]
@@ -44,13 +45,14 @@ include_dirs = ["external/EGL-Registry/api",
 "engine/gfx/metal"  = ["MacOS", "IOS", "TVOS"]
 "engine/gfx/vulkan" = ["Android", "Windows", "Linux"]
 
-# TODO make editor depend on engine; reuse sources
 [targets.JankEditor]
 type = "Application"
 
-depends   = ["JankEngine"]
+extends   = ["JankEngine"]
 platforms = ["Linux", "MacOS", "Windows"]
-defines   = ["BUILD_EDITOR"]
+defines   = ["BUILD_EDITOR=1"]
 
 assets  = "assets"
 sources = ["editor/**/*"]
+
+include_dirs = ["editor"]

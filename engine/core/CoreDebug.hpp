@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CoreLog.hpp"
+#include "core/CoreLog.hpp"
 
 #if BUILD_DEBUG
 DECL_LOG_SOURCE(Debug, Trace);

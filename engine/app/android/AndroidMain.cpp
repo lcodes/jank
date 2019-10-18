@@ -1,6 +1,6 @@
-#include "App.hpp"
+#include "app/App.hpp"
 
-#include "GfxTest.hpp"
+#include "app/GfxTest.hpp"
 
 #include <android_native_app_glue.h>
 #include <android/window.h>

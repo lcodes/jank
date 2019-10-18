@@ -1,4 +1,4 @@
-#include "CoreDebug.hpp"
+#include "core/CoreDebug.hpp"
 
 #include <stdarg.h>
 #include <stdio.h>

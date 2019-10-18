@@ -1,6 +1,6 @@
-#include "App.hpp"
+#include "app/App.hpp"
 
-#include "GfxTest.hpp"
+#include "app/GfxTest.hpp"
 
 #include <Windows.h>
 #include <GL/GL.h>
@@ -206,7 +206,7 @@ int main()
   gl.clearCurrent();
 
   _beginthreadex(nullptr, 0, renderMainWin, &gl, 0, nullptr);
-  
+
 #if GFX_PRESENT_THREAD
   _beginthreadex(nullptr, 0, presentMain, &gl, 0, nullptr);
 #endif

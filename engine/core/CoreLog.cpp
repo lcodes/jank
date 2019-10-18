@@ -1,5 +1,5 @@
-#include "CoreLog.hpp"
-#include "CoreDebug.hpp"
+#include "core/CoreLog.hpp"
+#include "core/CoreDebug.hpp"
 
 #include <stdarg.h>
 #include <stdio.h>

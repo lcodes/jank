@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core.hpp"
+#include "core/Core.hpp"
 
 #if PLATFORM_POSIX
 # include <pthread.h>

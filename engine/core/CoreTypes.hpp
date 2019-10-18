@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CoreTarget.hpp"
+#include "core/CoreTarget.hpp"
 
 #include <stddef.h>
 #include <stdint.h>

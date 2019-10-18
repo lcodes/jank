@@ -1,4 +1,6 @@
-#include "App.hpp"
+#include "app/App.hpp"
+#include "app/GfxTest.hpp"
+#include "net/NetSocket.hpp"
 
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
@@ -13,9 +15,6 @@
 #include <stdio.h>
 
 #include <exception>
-
-#include "GfxTest.hpp"
-#include "NetSocket.hpp"
 
 class HTML5OpenGL : public OpenGL {
 public:

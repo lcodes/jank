@@ -576,12 +576,98 @@ static bool ignoreExtension(std::string_view ext) {
 }
 #endif
 
-static void setupExtension(std::string_view ext) {
 #define TEST(name, body) else if ("GL_"#name##sv == ext) {  \
-    exts.name = true; body                                  \
+    exts.name = true;                                       \
+    body                                                    \
+    return true;                                            \
   }
 
-  if (ext.empty()) {} // The GL_EXTENSIONS string can end with a space.
+static bool setupExtensionGL3(std::string_view ext) {
+  if constexpr (false) {}
+  TEST(ARB_blend_func_extended, { // 3.3
+
+  })
+  TEST(ARB_copy_buffer, { // 3.0
+  })
+  TEST(ARB_depth_buffer_float, { // 3.0
+
+  })
+  TEST(ARB_depth_clamp, {}) // 3.2
+  TEST(ARB_draw_elements_base_vertex, { // 3.2
+  })
+  TEST(ARB_draw_instanced, { // 3.1
+
+  })
+  TEST(ARB_explicit_attrib_location, { // 3.3
+  })
+  TEST(ARB_framebuffer_object, { // 3.0
+  })
+  TEST(ARB_framebuffer_sRGB, { // 3.0
+  })
+  TEST(ARB_geometry_shader4, { // 3.2
+
+  })
+  TEST(ARB_half_float_pixel, { // 3.1
+  })
+  TEST(ARB_half_float_vertex, { // 3.1
+  })
+  TEST(ARB_imaging, {})
+  TEST(ARB_instanced_arrays, { // 3.3
+
+  })
+  TEST(ARB_map_buffer_range, { // 3.0
+  })
+  TEST(ARB_multisample, { // 3.0
+  })
+  TEST(ARB_occlusion_query2, { // 3.3
+  })
+  TEST(ARB_provoking_vertex, { // 3.2
+  })
+  TEST(ARB_seamless_cube_map, {}) // 3.2
+  TEST(ARB_seamless_cubemap_per_texture, {}) // 3.2
+  TEST(ARB_sampler_objects, { // 3.3
+  })
+  TEST(ARB_shader_bit_encoding, { // 3.3
+
+  })
+  TEST(ARB_sync, { // 3.2
+
+  })
+  TEST(ARB_texture_buffer_object, { // 3.1
+
+  })
+  TEST(ARB_texture_float, { // 3.0
+  })
+  TEST(ARB_texture_multisample, { // 3.2
+
+  })
+  TEST(ARB_texture_rectangle, { // 3.1
+  })
+  TEST(ARB_texture_rg, {}) // 3.0
+  TEST(ARB_texture_rgb10_a2ui, { // 3.3
+
+  })
+  TEST(ARB_texture_compression_rgtc, {}) // 3.0
+  TEST(ARB_texture_swizzle, { // 3.3
+  })
+  TEST(ARB_timer_query, { // 3.3
+
+  })
+  TEST(ARB_uniform_buffer_object, {}) // 3.1
+  TEST(ARB_vertex_array_object, { // 3.0
+  })
+  TEST(ARB_vertex_type_2_10_10_10_rev, { // 3.3
+
+  })
+  TEST(ARB_vertex_array_bgra, { // 3.2
+  })
+  else {
+    return false;
+  }
+}
+
+static bool setupExtensionGL4(std::string_view ext) {
+  if constexpr (false) {}
   TEST(ARB_ES2_compatibility, { // 4.1
   })
   TEST(ARB_ES3_compatibility, { // 4.3
@@ -591,16 +677,6 @@ static void setupExtension(std::string_view ext) {
 
   })
   TEST(ARB_ES3_2_compatibility, {
-
-  })
-  TEST(ARB_arrays_of_arrays, {})
-  TEST(ARB_base_instance, {
-
-  })
-  TEST(ARB_bindless_texture, {
-
-  })
-  TEST(ARB_blend_func_extended, { // 3.3
 
   })
   TEST(ARB_buffer_storage, { // 4.4
@@ -614,21 +690,13 @@ static void setupExtension(std::string_view ext) {
   TEST(ARB_clip_control, { // 4.5
 
   })
-  TEST(ARB_color_buffer_float, {
-  })
   TEST(ARB_compressed_texture_pixel_storage, { // 4.2
   })
   TEST(ARB_compute_shader, { // 4.3
 
   })
-  TEST(ARB_compute_variable_group_size, {
-
-  })
-  TEST(ARB_conservative_depth, {})
   TEST(ARB_conditional_render_inverted, { // 4.5
 
-  })
-  TEST(ARB_copy_buffer, { // 3.0
   })
   TEST(ARB_copy_image, { // 4.3
 
@@ -638,10 +706,6 @@ static void setupExtension(std::string_view ext) {
   })
   TEST(ARB_debug_output, { // 4.3
   })
-  TEST(ARB_depth_buffer_float, { // 3.0
-
-  })
-  TEST(ARB_depth_clamp, {}) // 3.2
   TEST(ARB_derivative_control, {}) // 4.5
   TEST(ARB_direct_state_access, { // 4.5
 
@@ -649,31 +713,14 @@ static void setupExtension(std::string_view ext) {
   TEST(ARB_draw_buffers_blend, { // 4.0
 
   })
-  TEST(ARB_draw_elements_base_vertex, { // 3.2
-  })
   TEST(ARB_draw_indirect, { // 4.3
 
   })
-  TEST(ARB_draw_instanced, { // 3.1
-
-  })
   TEST(ARB_enhanced_layouts, {}) // 4.4
-  TEST(ARB_explicit_attrib_location, { // 3.3
-  })
   TEST(ARB_explicit_uniform_location, { // 4.3
   })
-  TEST(ARB_fragment_coord_conventions, {
-  })
   TEST(ARB_fragment_layer_viewport, {}) // 4.3
-  TEST(ARB_fragment_shader_interlock, {})
   TEST(ARB_framebuffer_no_attachments, {}) // 4.3
-  TEST(ARB_framebuffer_object, { // 3.0
-  })
-  TEST(ARB_framebuffer_sRGB, { // 3.0
-  })
-  TEST(ARB_geometry_shader4, { // 3.2
-
-  })
   TEST(ARB_get_program_binary, { // 4.1
   })
   TEST(ARB_get_texture_sub_image, { // 4.5
@@ -687,18 +734,7 @@ static void setupExtension(std::string_view ext) {
   TEST(ARB_gpu_shader_fp64, { // 4.0
 
   })
-  TEST(ARB_gpu_shader_int64, {
-
-  })
-  TEST(ARB_half_float_pixel, { // 3.1
-  })
-  TEST(ARB_half_float_vertex, { // 3.1
-  })
-  TEST(ARB_imaging, {})
   TEST(ARB_indirect_parameters, { // 4.6
-
-  })
-  TEST(ARB_instanced_arrays, { // 3.3
 
   })
   TEST(ARB_internalformat_query, { // 4.2
@@ -709,55 +745,29 @@ static void setupExtension(std::string_view ext) {
   })
   TEST(ARB_map_buffer_alignment, { // 4.2
   })
-  TEST(ARB_map_buffer_range, { // 3.0
-  })
   TEST(ARB_multi_bind, { // 4.4
   })
   TEST(ARB_multi_draw_indirect, { // 4.3
 
   })
-  TEST(ARB_multisample, { // 3.0
-  })
-  TEST(ARB_occlusion_query2, { // 3.3
-  })
-  TEST(ARB_parallel_shader_compile, {})
   TEST(ARB_pipeline_statistics_query, {}) // 4.6
   TEST(ARB_polygon_offset_clamp, {}) // 4.6
-  TEST(ARB_post_depth_coverage, {})
   TEST(ARB_program_interface_query, { // 4.3
   })
-  TEST(ARB_provoking_vertex, { // 3.2
-  })
   TEST(ARB_query_buffer_object, {}) // 4.4
-  TEST(ARB_robust_buffer_access_behavior, {})
   TEST(ARB_robustness, { // 4.5
-  })
-  TEST(ARB_seamless_cube_map, {}) // 3.2
-  TEST(ARB_seamless_cubemap_per_texture, {}) // 3.2
-  TEST(ARB_sample_locations, {
-
   })
   TEST(ARB_sample_shading, { // 4.0
 
   })
-  TEST(ARB_sampler_objects, { // 3.3
-  })
   TEST(ARB_separate_shader_objects, { // 4.1
   })
-  TEST(ARB_shader_atomic_counter_ops, {})
   TEST(ARB_shader_atomic_counters, {}) // 4.2
-  TEST(ARB_shader_ballot, {})
-  TEST(ARB_shader_bit_encoding, { // 3.3
-
-  })
-  TEST(ARB_shader_clock, {})
   TEST(ARB_shader_draw_parameters, {}) // 4.6
-  TEST(ARB_shader_group_vote, {})
   TEST(ARB_shader_image_load_store, { // 4.2
 
   })
   TEST(ARB_shader_image_size, {}) // 4.3
-  TEST(ARB_shader_precision, {})
   TEST(ARB_shader_storage_buffer_object, { // 4.3
 
   })
@@ -765,50 +775,21 @@ static void setupExtension(std::string_view ext) {
 
   })
   TEST(ARB_shader_texture_image_samples, {}) // 4.5
-  TEST(ARB_shader_texture_lod, {
-  })
   TEST(ARB_shader_viewport_layer_array, {}) // 4.3
   TEST(ARB_shading_language_420_pack, {}) // 4.2
-  TEST(ARB_shading_language_include, {
-
-  })
   TEST(ARB_shading_language_packing, {}) // 4.0
-  TEST(ARB_sparse_buffer, {
-
-  })
-  TEST(ARB_sparse_texture, {
-
-  })
-  TEST(ARB_sparse_texture2, {})
-  TEST(ARB_sparse_texture_clamp, {})
   TEST(ARB_spirv_extensions, {}) // 4.6
   TEST(ARB_stencil_texturing, {}) // 4.3
-  TEST(ARB_sync, { // 3.2
-
-  })
   TEST(ARB_tessellation_shader, { // 4.0
 
   })
   TEST(ARB_texture_barrier, {}) // 4.5
-  TEST(ARB_texture_buffer_object, { // 3.1
-
-  })
-  TEST(ARB_texture_buffer_object_rgb32, {
-
-  })
   TEST(ARB_texture_buffer_range, { // 4.3
 
   })
-  TEST(ARB_texture_filter_anisotropic, {
-
-  })
   TEST(ARB_texture_compression_bptc, {}) // 4.2
-  TEST(ARB_texture_compression_rgtc, {}) // 3.0
   TEST(ARB_texture_cube_map_array, { // 4.0
 
-  })
-  TEST(ARB_texture_filter_minmax, {})
-  TEST(ARB_texture_float, { // 3.0
   })
   TEST(ARB_texture_gather, { // 4.0
 
@@ -817,29 +798,14 @@ static void setupExtension(std::string_view ext) {
   TEST(ARB_texture_query_lod, { // 4.0
 
   })
-  TEST(ARB_texture_multisample, { // 3.2
-
-  })
   TEST(ARB_texture_query_levels, {}) // 4.3
   TEST(ARB_texture_query_lod, {}) // 4.0
-  TEST(ARB_texture_rectangle, { // 3.1
-  })
-  TEST(ARB_texture_rg, {}) // 3.0
-  TEST(ARB_texture_rgb10_a2ui, { // 3.3
-
-  })
-  TEST(ARB_texture_stencil8, {})
   TEST(ARB_texture_storage, { // 4.2
   })
   TEST(ARB_texture_storage_multisample, { // 4.3
 
   })
-  TEST(ARB_texture_swizzle, { // 3.3
-  })
   TEST(ARB_texture_view, { // 4.3
-
-  })
-  TEST(ARB_timer_query, { // 3.3
 
   })
   TEST(ARB_transform_feedback2, { // 4.0
@@ -848,27 +814,84 @@ static void setupExtension(std::string_view ext) {
   TEST(ARB_transform_feedback3, { // 4.0
 
   })
-  TEST(ARB_transform_feedback_instanced, {})
-  TEST(ARB_transform_feedback_overflow_query, {})
-  TEST(ARB_uniform_buffer_object, {}) // 3.1
-  TEST(ARB_vertex_array_object, { // 3.0
-  })
   TEST(ARB_vertex_attrib_64bit, { // 4.1
-
-  })
-  TEST(ARB_vertex_type_10f_11f_11f_rev, {})
-  TEST(ARB_vertex_type_2_10_10_10_rev, { // 3.3
 
   })
   TEST(ARB_vertex_attrib_binding, { // 4.3
   })
-  TEST(ARB_vertex_array_bgra, { // 3.2
-  })
   TEST(ARB_viewport_array, { // 4.1
 
   })
+  else {
+    return false;
+  }
+}
+
+static bool setupExtensionNonCore(std::string_view ext) {
+  if constexpr (false) {}
+  TEST(ARB_arrays_of_arrays, {})
+  TEST(ARB_base_instance, {
+
+  })
+  TEST(ARB_bindless_texture, {
+
+  })
+  TEST(ARB_color_buffer_float, {
+  })
+  TEST(ARB_compute_variable_group_size, {
+
+  })
+  TEST(ARB_conservative_depth, {})
+  TEST(ARB_fragment_coord_conventions, {
+  })
+  TEST(ARB_fragment_shader_interlock, {})
+  TEST(ARB_gpu_shader_int64, {
+
+  })
+  TEST(ARB_parallel_shader_compile, {})
+  TEST(ARB_post_depth_coverage, {})
+  TEST(ARB_robust_buffer_access_behavior, {})
+  TEST(ARB_sample_locations, {
+
+  })
+  TEST(ARB_shader_atomic_counter_ops, {})
+  TEST(ARB_shader_ballot, {})
+  TEST(ARB_shader_clock, {})
+  TEST(ARB_shader_group_vote, {})
+  TEST(ARB_shader_precision, {})
+  TEST(ARB_shader_texture_lod, {
+  })
+  TEST(ARB_shading_language_include, {
+
+  })
+  TEST(ARB_sparse_buffer, {
+
+  })
+  TEST(ARB_sparse_texture, {
+
+  })
+  TEST(ARB_sparse_texture2, {})
+  TEST(ARB_sparse_texture_clamp, {})
+  TEST(ARB_texture_buffer_object_rgb32, {
+
+  })
+  TEST(ARB_texture_filter_anisotropic, {
+
+  })
+  TEST(ARB_texture_filter_minmax, {})
+  TEST(ARB_texture_stencil8, {})
+  TEST(ARB_transform_feedback_instanced, {})
+  TEST(ARB_transform_feedback_overflow_query, {})
+  TEST(ARB_vertex_type_10f_11f_11f_rev, {})
   TEST(ARB_window_pos, {
   })
+  else {
+    return false;
+  }
+}
+
+static bool setupExtensionEXT(std::string_view ext) {
+  if constexpr (false) {}
   TEST(EXT_Cg_shader, {})
   TEST(EXT_abgr, {})
   TEST(EXT_bindable_uniform, {})
@@ -914,6 +937,13 @@ static void setupExtension(std::string_view ext) {
   TEST(EXT_vertex_array_bgra, { // 3.2
 
   })
+  else {
+    return false;
+  }
+}
+
+static bool setupExtensionMisc(std::string_view ext) {
+  if constexpr (false) {}
   TEST(KHR_context_flush_control, {
   })
   TEST(KHR_debug, {
@@ -934,6 +964,16 @@ static void setupExtension(std::string_view ext) {
   TEST(ATI_texture_mirror_once, {})
   TEST(MESA_window_pos, {
   })
+  TEST(S3_s3tc, {})
+  TEST(SGIS_generate_mipmap, { // 3.0
+  })
+  else {
+    return false;
+  }
+}
+
+static bool setupExtensionNV(std::string_view ext) {
+  if constexpr (false) {}
   TEST(NV_packed_depth_stencil, {}) // 3.0
   TEST(NV_primitive_restart, {
   })
@@ -942,18 +982,45 @@ static void setupExtension(std::string_view ext) {
   })
   TEST(NV_texture_rectangle, { // 3.1
   })
-  TEST(S3_s3tc, {})
-  TEST(SGIS_generate_mipmap, { // 3.0
-  })
+  else {
+    return false;
+  }
+}
+#undef TEST
+
 #if BUILD_DEVELOPMENT
-  else if (ignoreExtension(ext)) {}
-#endif
+static void setupExtensionMissing(std::string_view ext) {
+  if (ignoreExtension(ext)) {}
   else {
     LOG(App, Warn, "Unknown GL Extension: %.*s", static_cast<u32>(ext.size()), ext.data());
   }
+}
+#else
+static void setupExtensionMissing(std::string_view ext) {}
+#endif
 
-#undef TEST
-#undef IGNORE
+static void setupExtension(std::string_view ext) {
+  if UNLIKELY(ext.empty()) {} // The GL_EXTENSIONS string can end with a space.
+  else if (strncmp("GL_ARB_", ext.data(), 7) == 0) {
+    if (!setupExtensionGL3(ext) && !setupExtensionGL4(ext) && !setupExtensionNonCore(ext)) {
+      setupExtensionMissing(ext);
+    }
+  }
+  else if (strncmp("GL_EXT_", ext.data(), 7) == 0) {
+    if (!setupExtensionEXT(ext)) {
+      setupExtensionMissing(ext);
+    }
+  }
+  else if (strncmp("GL_NV_", ext.data(), 6) == 0) {
+    if (!setupExtensionNV(ext)) {
+      setupExtensionMissing(ext);
+    }
+  }
+  else {
+    if (!setupExtensionMisc(ext)) {
+      setupExtensionMissing(ext);
+    }
+  }
 }
 
 

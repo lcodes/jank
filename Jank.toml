@@ -55,4 +55,7 @@ defines   = ["BUILD_EDITOR=1"]
 assets  = "assets"
 sources = ["editor/**/*"]
 
-include_dirs = ["editor"]
+include_dirs = ["editor",
+                "external/assimp/include"]
+
+libs = ["assimp"]

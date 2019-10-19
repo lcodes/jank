@@ -36,6 +36,7 @@
 DECL_LOG_SOURCE(Test, Info);
 
 void jank_imgui_init();
+void jank_imgui_newFrame();
 void jank_imgui_setCursor(ImGuiMouseCursor);
 
 char const* jank_imgui_getClipboardText(void*);
@@ -43,6 +44,7 @@ void jank_imgui_setClipboardText(void*, char const*);
 
 #if !PLATFORM_HTML5
 void jank_imgui_init() {}
+void jank_imgui_newFrame() {}
 void jank_imgui_setCursor(ImGuiMouseCursor) {}
 
 char const* jank_imgui_getClipboardText(void*) { return ""; }
@@ -472,8 +474,10 @@ void* renderMain(void* arg) {
     jank_imgui_setCursor(ImGui::GetMouseCursor());
     #endif
 
-    bool show = true;
+    jank_imgui_newFrame();
     ImGui::NewFrame();
+
+    bool show = true;
     ImGui::ShowDemoWindow(&show);
 
     ImGui::Begin("Hello");

@@ -192,52 +192,94 @@ static void pollGamepads() {
 
 DECL_LOG_SOURCE(Input, Warn);
 
+EM_JS(void, setLocalStorage, (char const* key, char const* value), {
+  localStorage.setItem(UTF8ToString(key), UTF8ToString(value));
+});
+
+EM_JS(char*, getLocalStorage, (char const* key, i32* outSize), {
+  const item = localStorage.getItem(UTF8ToString(key));
+  if (!item) {
+      setValue(outSize, 0, "i32");
+      return null;
+  }
+  const size = lengthBytesUTF8(item);
+  const buf = _malloc(size);
+  stringToUTF8(item, buf, size);
+  setValue(outSize, size, "i32");
+  return buf;
+});
+
 #include "imgui.h"
 
+static void saveImGuiSettings() {
+  auto& io{ ImGui::GetIO() };
+  if (io.WantSaveIniSettings) {
+    auto settings{ ImGui::SaveIniSettingsToMemory() };
+    LOG(App, Trace, "Saving ImGui Settings (%d bytes)", strlen(settings));
+    setLocalStorage("imgui", settings);
+    io.WantSaveIniSettings = false;
+  }
+}
+
 void jank_imgui_init() {
+  auto& io{ ImGui::GetIO() };
+  io.IniFilename = nullptr;
+  io.LogFilename = nullptr;
+
+  i32 settingsSize;
+  if (auto settings{ getLocalStorage("imgui", &settingsSize) }) {
+    LOG(App, Trace, "Loading ImGui Settings (%d bytes)", settingsSize);
+    ImGui::LoadIniSettingsFromMemory(settings, settingsSize);
+    free(settings);
+  }
+
   EM_ASM({
-      window["jankCanvasStyle"] = document.querySelector("#canvas").style;
-      getPermission("clipboard-write", "jankCanWriteClipboard", () => {});
+    window["jankCanvasStyle"] = document.querySelector("#canvas").style;
+    getPermission("clipboard-write", "jankCanWriteClipboard", () => {});
 
-      function getPermission(name, prop, prompt) {
-        window[prop] = false; // TODO clipboard is still new and janky
+    function getPermission(name, prop, prompt) {
+      window[prop] = false; // TODO clipboard is still new and janky
 
-        /*try {
-          navigator.permissions.query({name}).then(result => {
-              result.onchange = changed;
-              changed();
+      /*try {
+        navigator.permissions.query({name}).then(result => {
+          result.onchange = changed;
+          changed();
 
-              function changed() {
-                console.log("STATE CHANGED", result.state, navigator.clipboard);
-                switch (result.state) {
-                case "granted": window[prop] = true; break;
-                case "denied":  window[prop] = false; break;
-                case "prompt":  prompt(); break;
-                }
-              }
-            });
-        }
-        catch {
-          console.log("Permission not supported: ", prop);
-        }*/
+          function changed() {
+            console.log("STATE CHANGED", result.state, navigator.clipboard);
+            switch (result.state) {
+            case "granted": window[prop] = true; break;
+            case "denied":  window[prop] = false; break;
+            case "prompt":  prompt(); break;
+            }
+          }
+        });
       }
-    });
+      catch {
+        console.log("Permission not supported: ", prop);
+      }*/
+    }
+  });
+}
+
+void jank_imgui_newFrame() {
+  saveImGuiSettings();
 }
 
 EM_JS(void, setCursor, (u32 id), {
-    let name;
-    switch (id) {
-    case 0: name = "default";     break;
-    case 1: name = "text";        break;
-    case 2: name = "move";        break;
-    case 3: name = "ew-resize";   break;
-    case 4: name = "ns-resize";   break;
-    case 5: name = "nesw-resize"; break;
-    case 6: name = "nwse-resize"; break;
-    case 7: name = "pointer";     break;
-    }
-    window["jankCanvasStyle"].cursor = name;
-  });
+  let name;
+  switch (id) {
+  case 0: name = "default";     break;
+  case 1: name = "text";        break;
+  case 2: name = "move";        break;
+  case 3: name = "ew-resize";   break;
+  case 4: name = "ns-resize";   break;
+  case 5: name = "nesw-resize"; break;
+  case 6: name = "nwse-resize"; break;
+  case 7: name = "pointer";     break;
+  }
+  window["jankCanvasStyle"].cursor = name;
+});
 
 static u32 currentCursor = UINT32_MAX;
 
@@ -261,13 +303,14 @@ void jank_imgui_setCursor(ImGuiMouseCursor cursor) {
 }
 
 EM_JS(void, setClipboardText, (char const* text), {
-    if (window["jankCanWriteClipboard"]) {
-      navigator.clipboard.writeText(UTF8ToString(text));
-    }
-  });
+  if (window["jankCanWriteClipboard"]) {
+    navigator.clipboard.writeText(UTF8ToString(text));
+  }
+});
 
 char const* jank_imgui_getClipboardText(void*) {
-
+  ASSERT(0, "TODO");
+  return nullptr;
 }
 
 void jank_imgui_setClipboardText(void*, char const* text) {
@@ -363,6 +406,8 @@ static EM_BOOL jank_html5_onWebGLContextRestored(int, void const*, void*) {
 
 static const char* jank_html5_onBeforeUnload(int, void const*, void*) {
   LOG(App, Info, "BeforeUnload");
+  saveImGuiSettings();
+
   // FIXME: causes a context error in the refreshed page?!
   /*if (gl.context) {
     auto result{ eglDestroyContext(gl.display, gl.context) };
@@ -388,7 +433,20 @@ static void loop() {
   renderMain(&gl);
 }
 
+#ifdef __EMSCRIPTEN_PTHREADS__
+void* testMain(void*) {
+  LOG(App, Warn, "HELLO WORKER");
+  return nullptr;
+}
+#include <pthread.h>
+#endif
+
 int main() {
+#ifdef __EMSCRIPTEN_PTHREADS__
+  pthread_t t;
+  pthread_create(&t, nullptr, &testMain, nullptr);
+#endif
+
   {
 #define window EMSCRIPTEN_EVENT_TARGET_WINDOW
     emscripten_set_keydown_callback(window, nullptr, true, jank_html5_onKeyDown);
@@ -433,9 +491,11 @@ int main() {
     gl.width = 1920;
     gl.height = 1024;
 
-    EM_ASM(let canvas = document.getElementById("canvas");
-           canvas.width = 1920;
-           canvas.height = 1024);
+    EM_ASM({
+      let canvas = document.getElementById("canvas");
+      canvas.width = 1920;
+      canvas.height = 1024;
+    });
 
     gl.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (gl.display == EGL_NO_DISPLAY) {

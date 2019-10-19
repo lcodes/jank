@@ -53,7 +53,7 @@
 #elif defined(__EMSCRIPTEN__)
 # define COMPILER_EMSCRIPTEN 1
 #else
-# error Unsupported compiler
+# error "Unsupported compiler"
 #endif
 
 #define COMPILER_GNU_COMPATIBLE (COMPILER_CLANG || COMPILER_INTEL || COMPILER_GCC)
@@ -95,6 +95,7 @@
 //# error "/experimental:preprocessor" is required for MSVC
 //#endif
 
+
 // Platform
 // -----------------------------------------------------------------------------
 
@@ -110,12 +111,12 @@
 #  elif TARGET_OS_WATCH
 #   define PLATFORM_WATCHOS 1
 #  else
-#   error Unsupported iPhone platform
+#   error "Unsupported iPhone platform"
 #  endif
 # elif TARGET_OS_MAC
 #  define PLATFORM_MACOS 1
 # else
-#  error Unsupported Apple platform
+#  error "Unsupported Apple platform"
 # endif
 #elif defined(__linux__)
 # if defined(__ANDROID__)
@@ -128,7 +129,7 @@
 #elif defined(__EMSCRIPTEN__)
 # define PLATFORM_HTML5 1
 #else
-# error Unsupported platform
+# error "Unsupported platform"
 #endif
 
 /// Platform implementing the POSIX standard.
@@ -201,7 +202,7 @@
 #elif defined(__wasm__)
 # define ARCH_WASM 1
 #else
-# error Unsupported architecture
+# error "Unsupported architecture"
 #endif
 
 #ifndef ARCH_X86
@@ -286,7 +287,7 @@
 // Windows is natively UTF-16. Using its Unicode APIs prevents the expensive
 // string conversions performed by the ANSI variants.
 # ifndef UNICODE
-#  error Windows builds must use Unicode
+#  error "Windows builds must use Unicode"
 # endif
 // Greatly limits the headers pulled in when including <Windows.h>.
 # ifndef WIN32_MEAN_AND_LEAN
@@ -302,4 +303,3 @@
 # pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 # pragma clang diagnostic ignored "-Wnested-anon-types"
 #endif
-

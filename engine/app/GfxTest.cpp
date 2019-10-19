@@ -18,6 +18,9 @@
 #if PLATFORM_ANDROID
 # include <GLES3/gl3.h>
 # include <GLES3/gl3ext.h>
+#elif PLATFORM_LINUX
+# include <GL/gl.h>
+# include <GL/glcorearb.h>
 #elif PLATFORM_MACOS
 # include <OpenGL/gl3.h>
 # include <OpenGL/gl3ext.h>
@@ -30,7 +33,7 @@
 #elif PLATFORM_HTML5
 # include <GLES3/gl3.h>
 #else
-# error Don't know how to include OpenGL for the target platform
+# error "Don't know how to include OpenGL for the target platform"
 #endif
 
 DECL_LOG_SOURCE(Test, Info);
@@ -51,8 +54,9 @@ char const* jank_imgui_getClipboardText(void*) { return ""; }
 void jank_imgui_setClipboardText(void*, char const*) {}
 #endif
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_LINUX || PLATFORM_WINDOWS
 
+#if PLATFORM_WINDOWS
 #define GL1_2_PROCS \
   GL(TEXIMAGE3D, TexImage3D); \
   GL(TEXSUBIMAGE3D, TexSubImage3D)
@@ -67,6 +71,7 @@ void jank_imgui_setClipboardText(void*, char const*) {}
 
 #define GL1_4_PROCS \
   GL(BLENDEQUATION, BlendEquation)
+#endif
 
 #define GL1_5_PROCS \
   GL(BINDBUFFER, BindBuffer); \
@@ -123,9 +128,11 @@ void jank_imgui_setClipboardText(void*, char const*) {}
 // TODO GL4
 
 #define GL(type, name) static PFNGL##type##PROC gl##name
+#if PLATFORM_WINDOWS
 GL1_2_PROCS;
 GL1_3_PROCS;
 GL1_4_PROCS;
+#endif
 GL1_5_PROCS;
 GL2_0_PROCS;
 GL3_0_PROCS;
@@ -241,11 +248,13 @@ void* renderMain(void* arg) {
     i32 numExts;
     glGetIntegerv(GL_NUM_EXTENSIONS, &numExts);
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_LINUX || PLATFORM_WINDOWS
 #define GL(type, name) gl##name = reinterpret_cast<PFNGL##type##PROC>(gl->getProcAddress("gl" #name))
+    #if PLATFORM_WINDOWS
     GL1_2_PROCS;
     GL1_3_PROCS;
     GL1_4_PROCS;
+    #endif
     GL1_5_PROCS;
     GL2_0_PROCS;
     GL3_0_PROCS;

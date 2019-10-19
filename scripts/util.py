@@ -32,13 +32,10 @@ def __copy(name, build_dir, out_dir):
     os.makedirs(out_dir)
   elif os.path.isdir(dst):
     shutil.rmtree(dst)
-  else:
+  elif os.path.isfile(dst):
     os.remove(dst)
 
-  if os.path.isdir(src):
-    shutil.copytree(src, dst)
-  else:
-    shutil.copyfile(src, dst)
+  shutil.move(src, dst)
 
 def __cmake_run_make(input_dir, args, includes, libs, config_name, config):
   build_dir = os.path.join(temp_dir, os.path.basename(input_dir), config)

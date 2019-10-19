@@ -42,12 +42,19 @@ public:
   }
 
   f64 getDeltaTime() override {
-    return 0;
+    return 0.016;
   }
 };
 
 static u32 renderMainWin(void* arg) {
+#if GFX_PRESENT_THREAD
   renderMain(arg);
+#else
+  auto gl{ reinterpret_cast<WindowsOpenGL*>(arg) };
+  while (true) {
+    renderMain(arg);
+  }
+#endif
   return 0;
 }
 

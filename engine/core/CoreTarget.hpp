@@ -292,9 +292,8 @@
 # ifndef WIN32_MEAN_AND_LEAN
 #  define WIN32_MEAN_AND_LEAN
 # endif
-// Full iterator debugging can be really slow.
-# if BUILD_DEBUG && !defined(_ITERATOR_DEBUG_LEVEL)
-#  define _ITERATOR_DEBUG_LEVEL 1
+# ifndef NOMINMAX
+#  define NOMINMAX
 # endif
 #endif
 

@@ -91,6 +91,7 @@ void jank_imgui_setClipboardText(void*, char const*) {}
   GL(LINKPROGRAM, LinkProgram); \
   GL(SHADERSOURCE, ShaderSource); \
   GL(UNIFORM1I, Uniform1i); \
+  GL(UNIFORM2FV, Uniform2fv); \
   GL(UNIFORMMATRIX4FV, UniformMatrix4fv); \
   GL(USEPROGRAM, UseProgram); \
   GL(VERTEXATTRIBPOINTER, VertexAttribPointer)

@@ -46,7 +46,18 @@ constexpr u16 glMakeVersion(i32 major, i32 minor) {
   return static_cast<u16>((major << 8) | minor);
 }
 
+constexpr u16 GL2_1 = glMakeVersion(2, 1);
 constexpr u16 GL3_0 = glMakeVersion(3, 0);
+constexpr u16 GL3_1 = glMakeVersion(3, 1);
+constexpr u16 GL3_2 = glMakeVersion(3, 2);
+constexpr u16 GL3_3 = glMakeVersion(3, 3);
+constexpr u16 GL4_0 = glMakeVersion(4, 0);
+constexpr u16 GL4_1 = glMakeVersion(4, 1);
+constexpr u16 GL4_2 = glMakeVersion(4, 2);
+constexpr u16 GL4_3 = glMakeVersion(4, 3);
+constexpr u16 GL4_4 = glMakeVersion(4, 4);
+constexpr u16 GL4_5 = glMakeVersion(4, 5);
+constexpr u16 GL4_6 = glMakeVersion(4, 6);
 
 void jank_imgui_init();
 void jank_imgui_newFrame();
@@ -223,45 +234,105 @@ GL_CHECK_INFO_LOG(glCheckProgram, glGetProgramiv, glGetProgramInfoLog, GL_LINK_S
 
 static struct {
   usize ARB_ES2_compatibility:                1;
+  usize ARB_ES3_compatibility:                1;
+  usize ARB_ES3_1_compatibility:                1;
+  usize ARB_ES3_2_compatibility:                1;
+  usize ARB_base_instance : 1;
+  usize ARB_bindless_texture : 1;
+  usize ARB_blend_func_extended : 1;
+  usize ARB_buffer_storage : 1;
   usize ARB_clear_buffer_object:              1;
+  usize ARB_clear_texture : 1;
+  usize ARB_clip_control : 1;
   usize ARB_color_buffer_float:               1;
   usize ARB_compressed_texture_pixel_storage: 1;
+  usize ARB_compute_shader : 1;
+  usize ARB_compute_variable_group_size : 1;
+  usize ARB_conditional_render_inverted : 1;
+  usize ARB_conservative_depth : 1;
   usize ARB_copy_buffer:                      1;
+  usize ARB_copy_image : 1;
+  usize ARB_cull_distance : 1;
   usize ARB_debug_output:                     1;
   usize ARB_depth_texture:                    1;
   usize ARB_draw_elements_base_vertex:        1;
   usize ARB_explicit_attrib_location:         1;
   usize ARB_explicit_uniform_location:        1;
   usize ARB_fragment_coord_conventions:       1;
+  usize ARB_framebuffer_no_attachments : 1;
   usize ARB_framebuffer_object:               1;
   usize ARB_framebuffer_sRGB:                 1;
+  usize ARB_geometry_shader4 : 1;
   usize ARB_get_program_binary:               1;
   usize ARB_get_texture_sub_image:            1;
+  usize ARB_gl_spirv : 1;
+  usize ARB_gpu_shader5 : 1;
+  usize ARB_gpu_shader_fp64 : 1;
+  usize ARB_gpu_shader_int64 : 1;
   usize ARB_half_float_pixel:                 1;
   usize ARB_half_float_vertex:                1;
+  usize ARB_instanced_arrays : 1;
   usize ARB_internalformat_query:             1;
   usize ARB_internalformat_query2:            1;
   usize ARB_invalidate_subdata:               1;
   usize ARB_map_buffer_alignment:             1;
   usize ARB_map_buffer_range:                 1;
   usize ARB_multi_bind:                       1;
+  usize ARB_multi_draw_indirect: 1;
   usize ARB_multisample:                      1;
   usize ARB_occlusion_query2:                 1;
+  usize ARB_parallel_shader_compile : 1;
   usize ARB_program_interface_query:          1;
   usize ARB_provoking_vertex:                 1;
+  usize ARB_query_buffer_object : 1;
   usize ARB_robustness:                       1;
   usize ARB_sampler_objects:                  1;
   usize ARB_separate_shader_objects:          1;
+  usize ARB_shader_atomic_counters : 1;
+  usize ARB_shader_atomic_counter_ops : 1;
+  usize ARB_shader_draw_parameters : 1;
+  usize ARB_shader_precision : 1;
+  usize ARB_shader_storage_buffer_object : 1;
+  usize ARB_shader_subroutine : 1;
   usize ARB_shader_texture_lod:               1;
+  usize ARB_shader_texture_image_samples : 1;
+  usize ARB_shader_viewport_layer_array : 1;
+  usize ARB_shading_language_420_pack : 1;
+  usize ARB_shading_language_include : 1;
+  usize ARB_shading_language_packing : 1;
+  usize ARB_sparse_buffer : 1;
+  usize ARB_sparse_texture : 1;
+  usize ARB_sparse_texture2 : 1;
+  usize ARB_sparse_texture_clamp : 1;
+  usize ARB_spirv_dimensions : 1;
   usize ARB_sync:                             1;
+  usize ARB_tessellation_shader : 1;
+  usize ARB_texture_barrier : 1;
+  usize ARB_texture_buffer_object : 1;
+  usize ARB_texture_buffer_object_rgb32 : 1;
+  usize ARB_texture_buffer_range : 1;
+  usize ARB_texture_compression_bptc : 1;
+  usize ARB_texture_compression_rgtc : 1;
+  usize ARB_texture_cube_map_array : 1;
   usize ARB_texture_filter_anisotropic:       1;
   usize ARB_texture_float:                    1;
   usize ARB_texture_rectangle:                1;
   usize ARB_texture_storage:                  1;
   usize ARB_texture_swizzle:                  1;
+  usize ARB_texture_view : 1;
+  usize ARB_timer_query : 1;
+  usize ARB_transform_feedback2 : 1;
+  usize ARB_transform_feedback3 : 1;
+  usize ARB_transform_feedback_instanced : 1;
+  usize ARB_transform_feedback_overflow_query : 1;
+  usize ARB_uniform_buffer_object : 1;
   usize ARB_vertex_array_bgra:                1;
   usize ARB_vertex_array_object:              1;
+  usize ARB_vertex_attrib_64bit : 1;
   usize ARB_vertex_attrib_binding:            1;
+  usize ARB_vertex_type_10f_11f_11f_rev : 1;
+  usize ARB_vertex_type_2_10_10_10_rev : 1;
+  usize ARB_viewport_array : 1;
   usize ARB_window_pos:                       1;
   usize EXT_abgr:                             1;
   usize EXT_framebuffer_blit:                 1;
@@ -269,6 +340,7 @@ static struct {
   usize EXT_framebuffer_sRGB:                 1;
   usize EXT_packed_depth_stencil:             1;
   usize EXT_provoking_vertex:                 1;
+  usize EXT_semaphore : 1;
   usize EXT_texture_compression_dxt1:         1;
   usize EXT_texture_compression_s3tc:         1;
   usize EXT_texture_filter_anisotropic:       1;
@@ -279,6 +351,8 @@ static struct {
   usize KHR_debug:                            1;
   usize KHR_context_flush_control:            1;
   usize KHR_no_error:                         1;
+  usize KHR_parallel_shader_compile : 1;
+  usize KTX_buffer_region : 1;
   usize OES_EGL_image:                        1;
   usize OES_read_format:                      1;
   usize ANGLE_texture_compression_dxt3:       1;
@@ -286,19 +360,170 @@ static struct {
   usize AMD_shader_trinary_minmax:            1;
   usize ATI_texture_float:                    1;
   usize MESA_window_pos:                      1;
+  usize NV_ES1_1_compatibility : 1;
+  usize NV_ES3_1_compatibility : 1;
+  usize NV_bindless_multi_draw_indirect : 1;
+  usize NV_bindless_multi_draw_indirect_count : 1;
+  usize NV_bindless_texture : 1;
+  usize NV_blend_equation_advanced : 1;
+  usize NV_blend_equation_advanced_coherent : 1;
+  usize NV_compute_program5 : 1;
+  usize NV_compute_shader_derivatives : 1;
+  usize NV_conditional_render : 1;
+  usize NV_conservative_raster : 1;
+  usize NV_conservative_raster_dilate : 1;
+  usize NV_conservative_raster_pre_snap : 1;
+  usize NV_conservative_raster_pre_snap_triangles : 1;
+  usize NV_conservative_raster_underestimation : 1;
+  usize NV_draw_texture : 1;
+  usize NV_draw_vulkan_image : 1;
+  usize NV_feature_query : 1;
+  usize NV_fence : 1;
+  usize NV_geometry_shader4 : 1;
+  usize NV_geometry_shader_passthrough : 1;
+  usize NV_gpu_program4 : 1;
+  usize NV_gpu_program4_1 : 1;
+  usize NV_gpu_program5 : 1;
+  usize NV_gpu_program5_mem_extended : 1;
+  usize NV_gpu_program_fp64 : 1;
+  usize NV_gpu_shader5 : 1;
+  usize NV_half_float : 1;
+  usize NV_memory_attachment : 1;
+  usize NV_mesh_shader : 1;
   usize NV_packed_depth_stencil:              1;
+  usize NV_parameter_buffer_object : 1;
+  usize NV_parameter_buffer_object2 : 1;
+  usize NV_path_rendering : 1;
+  usize NV_path_rendering_shared_edge : 1;
   usize NV_primitive_restart:                 1;
+  usize NV_shader_atomic_counters : 1;
+  usize NV_shader_atomic_float : 1;
+  usize NV_shader_atomic_float64 : 1;
+  usize NV_shader_atomic_fp16_vector : 1;
+  usize NV_shader_atomic_int64 : 1;
+  usize NV_shader_buffer_load : 1;
+  usize NV_shader_storage_buffer_object : 1;
+  usize NV_shader_texture_footprint : 1;
+  usize NV_shader_thread_group : 1;
+  usize NV_shader_thread_shuffle : 1;
+  usize NV_stereo_view_rendering : 1;
+  usize NV_texture_barrier : 1;
+  usize NV_texture_compression_vtc : 1;
   usize NV_texture_rectangle:                 1;
+  usize NV_texture_shader : 1;
+  usize NV_texture_shader2 : 1;
+  usize NV_texture_shader3 : 1;
+  usize NV_transform_feedback : 1;
+  usize NV_transform_feedback2 : 1;
+  usize NV_uniform_buffer_unified_memory : 1;
+  usize NV_vertex_array_range : 1;
+  usize NV_vertex_array_range2 : 1;
+  usize NV_vertex_attrib_64bit : 1;
+  usize NV_vertex_buffer_unified_memory : 1;
+  usize NVX_blend_equation_advanced_multi_draw_buffers : 1;
+  usize NVX_conditional_render : 1;
+  usize NVX_gpu_memory_info : 1;
+  usize NVX_multigpu_info : 1;
+  usize NVX_nvenc_interop : 1;
+  usize OVR_multiview : 1;
+  usize OVR_multiview2 : 1;
   usize S3_s3tc:                              1;
   usize SGIS_generate_mipmap:                 1;
 } exts;
 
-static void setupExtension(std::string_view ext) {
 #if BUILD_DEVELOPMENT
-# define IGNORE(name) else if ("GL_"#name##sv == ext) {}
-#else
-# define IGNORE(name)
+static bool ignoreExtension(std::string_view ext) {
+# define IGNORE(name) else if ("GL_"#name##sv == ext) return true;
+  if (false) {}
+  IGNORE(ARB_multitexture)             // 1.2
+  IGNORE(ARB_texture_border_clamp)     // 1.3
+  IGNORE(ARB_texture_compression)      // 1.3
+  IGNORE(ARB_texture_cube_map)         // 1.3
+  IGNORE(ARB_depth_texture)            // 1.4
+  IGNORE(ARB_point_parameters)         // 1.4
+  IGNORE(ARB_texture_mirrored_repeat)  // 1.4
+  IGNORE(ARB_occlusion_query)          // 1.5
+  IGNORE(ARB_vertex_buffer_object)     // 1.5
+  IGNORE(ARB_draw_buffers)             // 2.0
+  IGNORE(ARB_fragment_shader)          // 2.0
+  IGNORE(ARB_shader_objects)           // 2.0
+  IGNORE(ARB_shading_language_100)     // 2.0
+  IGNORE(ARB_texture_non_power_of_two) // 2.0
+  IGNORE(ARB_vertex_shader)            // 2.0
+  IGNORE(ARB_pixel_buffer_object)      // 2.1
+  IGNORE(EXT_copy_texture)             // 1.1
+  IGNORE(EXT_subtexture)               // 1.1
+  IGNORE(EXT_texture)                  // 1.1
+  IGNORE(EXT_texture_object)           // 1.1
+  IGNORE(EXT_vertex_array)             // 1.1
+  IGNORE(EXT_bgra)                     // 1.2
+  IGNORE(EXT_draw_range_elements)      // 1.2
+  IGNORE(EXT_packed_pixels)            // 1.2
+  IGNORE(EXT_texture3D)                // 1.2
+  IGNORE(EXT_texture_edge_clamp)       // 1.2
+  IGNORE(EXT_texture_cube_map)         // 1.3
+  IGNORE(EXT_blend_color)              // 1.3
+  IGNORE(EXT_blend_func_separate)      // 1.4
+  IGNORE(EXT_blend_minmax)             // 1.4
+  IGNORE(EXT_blend_subtract)           // 1.4
+  IGNORE(EXT_multi_draw_arrays)        // 1.4
+  IGNORE(EXT_point_parameters)         // 1.4
+  IGNORE(EXT_stencil_wrap)             // 1.4
+  IGNORE(EXT_texture_lod_bias)         // 1.4
+  IGNORE(EXT_blend_equation_separate)  // 2.0
+  IGNORE(EXT_pixel_buffer_object)      // 2.1
+  IGNORE(EXT_texture_sRGB)             // 2.1
+  IGNORE(APPLE_packed_pixels)          // 1.2
+  IGNORE(ATI_blend_equation_separate)  // 2.0
+  IGNORE(ATI_separate_stencil)         // 2.0
+  IGNORE(IBM_texture_mirrored_repeat)  // 1.4
+  IGNORE(INGR_blend_func_separate)     // 1.4
+  IGNORE(SGIS_texture_edge_clamp)      // 1.2
+  IGNORE(SGIS_texture_lod)             // 1.2
+  IGNORE(SGIS_texture_border_clamp)    // 1.3
+  IGNORE(SUN_multi_draw_arrays)        // 1.4
+  // Deprecated / Misc. Ignored
+  IGNORE(ARB_fragment_program)
+  IGNORE(ARB_fragment_program_shadow)
+  IGNORE(ARB_point_sprite)
+  IGNORE(ARB_shadow)
+  IGNORE(ARB_texture_env_add)
+  IGNORE(ARB_texture_env_combine)
+  IGNORE(ARB_texture_env_crossbar)
+  IGNORE(ARB_texture_env_dot3)
+  IGNORE(ARB_transpose_matrix)
+  IGNORE(ARB_vertex_program)
+  IGNORE(EXT_compiled_vertex_array)
+  IGNORE(EXT_fog_coord)
+  IGNORE(EXT_gpu_program_parameters)
+  IGNORE(EXT_rescale_normal)
+  IGNORE(EXT_texture_env_add)
+  IGNORE(EXT_texture_env_combine)
+  IGNORE(EXT_texture_env_dot3)
+  IGNORE(EXT_texture_shadow_funcs)
+  IGNORE(EXT_secondary_color)
+  IGNORE(EXT_separate_specular_color)
+  IGNORE(EXT_shadow_funcs)
+  IGNORE(EXT_stencil_two_side)
+  IGNORE(ATI_draw_buffers)
+  IGNORE(ATI_texture_env_combine3)
+  IGNORE(ATI_fragment_shader)
+  IGNORE(IBM_multimode_draw_arrays)
+  IGNORE(IBM_rasterpos_clip)
+  IGNORE(MESA_pack_invert)
+  IGNORE(NV_blend_square)
+  IGNORE(NV_fog_distance)
+  IGNORE(NV_light_max_exponent)
+  IGNORE(NV_texgen_reflection)
+  IGNORE(NV_texture_env_combine4)
+  IGNORE(NV_register_combiners)
+  IGNORE(NV_register_combiners2)
+  return false;
+# undef IGNORE
+}
 #endif
+
+static void setupExtension(std::string_view ext) {
 #define TEST(name, body) else if ("GL_"#name##sv == ext) {  \
     exts.name = true; body                                  \
   }
@@ -441,87 +666,9 @@ static void setupExtension(std::string_view ext) {
   TEST(S3_s3tc, {})
   TEST(SGIS_generate_mipmap, { // 3.0
   })
-  IGNORE(ARB_multitexture)             // 1.2
-  IGNORE(ARB_texture_border_clamp)     // 1.3
-  IGNORE(ARB_texture_compression)      // 1.3
-  IGNORE(ARB_texture_cube_map)         // 1.3
-  IGNORE(ARB_depth_texture)            // 1.4
-  IGNORE(ARB_point_parameters)         // 1.4
-  IGNORE(ARB_texture_mirrored_repeat)  // 1.4
-  IGNORE(ARB_occlusion_query)          // 1.5
-  IGNORE(ARB_vertex_buffer_object)     // 1.5
-  IGNORE(ARB_draw_buffers)             // 2.0
-  IGNORE(ARB_fragment_shader)          // 2.0
-  IGNORE(ARB_shader_objects)           // 2.0
-  IGNORE(ARB_shading_language_100)     // 2.0
-  IGNORE(ARB_texture_non_power_of_two) // 2.0
-  IGNORE(ARB_vertex_shader)            // 2.0
-  IGNORE(ARB_pixel_buffer_object)      // 2.1
-  IGNORE(EXT_copy_texture)             // 1.1
-  IGNORE(EXT_subtexture)               // 1.1
-  IGNORE(EXT_texture)                  // 1.1
-  IGNORE(EXT_texture_object)           // 1.1
-  IGNORE(EXT_vertex_array)             // 1.1
-  IGNORE(EXT_bgra)                     // 1.2
-  IGNORE(EXT_draw_range_elements)      // 1.2
-  IGNORE(EXT_packed_pixels)            // 1.2
-  IGNORE(EXT_texture3D)                // 1.2
-  IGNORE(EXT_texture_edge_clamp)       // 1.2
-  IGNORE(EXT_texture_cube_map)         // 1.3
-  IGNORE(EXT_blend_color)              // 1.3
-  IGNORE(EXT_blend_func_separate)      // 1.4
-  IGNORE(EXT_blend_minmax)             // 1.4
-  IGNORE(EXT_blend_subtract)           // 1.4
-  IGNORE(EXT_multi_draw_arrays)        // 1.4
-  IGNORE(EXT_point_parameters)         // 1.4
-  IGNORE(EXT_stencil_wrap)             // 1.4
-  IGNORE(EXT_texture_lod_bias)         // 1.4
-  IGNORE(EXT_blend_equation_separate)  // 2.0
-  IGNORE(EXT_pixel_buffer_object)      // 2.1
-  IGNORE(EXT_texture_sRGB)             // 2.1
-  IGNORE(APPLE_packed_pixels)          // 1.2
-  IGNORE(ATI_blend_equation_separate)  // 2.0
-  IGNORE(ATI_separate_stencil)         // 2.0
-  IGNORE(IBM_texture_mirrored_repeat)  // 1.4
-  IGNORE(INGR_blend_func_separate)     // 1.4
-  IGNORE(SGIS_texture_edge_clamp)      // 1.2
-  IGNORE(SGIS_texture_lod)             // 1.2
-  IGNORE(SGIS_texture_border_clamp)    // 1.3
-  IGNORE(SUN_multi_draw_arrays)        // 1.4
-  // Deprecated / Misc. Ignored
-  IGNORE(ARB_fragment_program)
-  IGNORE(ARB_fragment_program_shadow)
-  IGNORE(ARB_point_sprite)
-  IGNORE(ARB_shadow)
-  IGNORE(ARB_texture_env_add)
-  IGNORE(ARB_texture_env_combine)
-  IGNORE(ARB_texture_env_crossbar)
-  IGNORE(ARB_texture_env_dot3)
-  IGNORE(ARB_transpose_matrix)
-  IGNORE(ARB_vertex_program)
-  IGNORE(EXT_compiled_vertex_array)
-  IGNORE(EXT_fog_coord)
-  IGNORE(EXT_gpu_program_parameters)
-  IGNORE(EXT_rescale_normal)
-  IGNORE(EXT_texture_env_add)
-  IGNORE(EXT_texture_env_combine)
-  IGNORE(EXT_texture_env_dot3)
-  IGNORE(EXT_texture_shadow_funcs)
-  IGNORE(EXT_secondary_color)
-  IGNORE(EXT_separate_specular_color)
-  IGNORE(EXT_shadow_funcs)
-  IGNORE(EXT_stencil_two_side)
-  IGNORE(ATI_draw_buffers)
-  IGNORE(ATI_texture_env_combine3)
-  IGNORE(ATI_fragment_shader)
-  IGNORE(IBM_multimode_draw_arrays)
-  IGNORE(IBM_rasterpos_clip)
-  IGNORE(MESA_pack_invert)
-  IGNORE(NV_blend_square)
-  IGNORE(NV_fog_distance)
-  IGNORE(NV_light_max_exponent)
-  IGNORE(NV_texgen_reflection)
-  IGNORE(NV_texture_env_combine4)
+#if BUILD_DEVELOPMENT
+  else if (ignoreExtension(ext)) {}
+#endif
   else {
     LOG(App, Warn, "Unknown GL Extension: %.*s", static_cast<u32>(ext.size()), ext.data());
   }
@@ -607,6 +754,22 @@ void* renderMain(void* arg) {
       }
     }
 
+#if PLATFORM_LINUX || PLATFORM_WINDOWS
+# define GL(type, name) gl##name = reinterpret_cast<PFNGL##type##PROC>(gl->getProcAddress("gl" #name))
+#  if PLATFORM_WINDOWS
+    GL1_2_PROCS;
+    GL1_3_PROCS;
+    GL1_4_PROCS;
+#  endif
+    GL1_5_PROCS;
+    GL2_0_PROCS;
+    if (glVersion >= GL3_0) GL3_0_PROCS;
+    if (glVersion >= GL3_1) GL3_1_PROCS;
+    if (glVersion >= GL3_2) GL3_2_PROCS;
+    if (glVersion >= GL3_3) GL3_3_PROCS;
+# undef GL
+#endif
+
     if (glVersion < GL3_0) {
       auto str{ reinterpret_cast<char const*>(glGetString(GL_EXTENSIONS)) };
       for (;;) {
@@ -616,7 +779,7 @@ void* renderMain(void* arg) {
           break;
         }
 
-        setupExtension({ str, end - str });
+        setupExtension({ str, static_cast<usize>(end - str) });
         str = end + 1;
       }
     }
@@ -629,22 +792,6 @@ void* renderMain(void* arg) {
         setupExtension({ str });
       }
     }
-
-#if PLATFORM_LINUX || PLATFORM_WINDOWS
-#define GL(type, name) gl##name = reinterpret_cast<PFNGL##type##PROC>(gl->getProcAddress("gl" #name))
-    #if PLATFORM_WINDOWS
-    GL1_2_PROCS;
-    GL1_3_PROCS;
-    GL1_4_PROCS;
-    #endif
-    GL1_5_PROCS;
-    GL2_0_PROCS;
-    GL3_0_PROCS;
-    GL3_1_PROCS;
-    GL3_2_PROCS;
-    GL3_3_PROCS;
-#undef GL
-#endif
 
     b2BodyDef groundBodyDef;
     groundBodyDef.position.Set(0, -12);

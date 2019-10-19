@@ -472,6 +472,7 @@ static struct {
   usize KHR_no_error:                         1;
   usize KHR_parallel_shader_compile : 1;
   usize KHR_robust_buffer_access_behavior: 1;
+  usize KHR_robustness: 1;
   usize KHR_texture_compression_astc_ldr: 1;
   usize KHR_texture_compression_astc_hdr: 1;
   usize KTX_buffer_region : 1;
@@ -609,6 +610,7 @@ static struct {
   usize EXT_memory_object_win32: 1;
   usize EXT_semaphore_win32: 1;
   usize EXT_win32_keyed_mutex: 1;
+  usize WIN_swap_hint: 1;
 #endif
 } exts;
 
@@ -1065,9 +1067,12 @@ static bool setupExtensionMisc(std::string_view ext) {
   })
   TEST(KHR_no_error, {
   })
+  TEST(KHR_parallel_shader_compile, {})
   TEST(KHR_robust_buffer_access_behavior, {})
+  TEST(KHR_robustness, {})
   TEST(KHR_texture_compression_astc_ldr, {})
   TEST(KHR_texture_compression_astc_hdr, {})
+  TEST(KTX_buffer_region, {})
   TEST(OES_EGL_image, {})
   TEST(OES_EGL_image_external, {})
   TEST(OES_EGL_image_external_essl3, {})

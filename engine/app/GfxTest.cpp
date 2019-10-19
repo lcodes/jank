@@ -324,7 +324,7 @@ static struct {
   usize ARB_shader_texture_lod:               1;
   usize ARB_shader_texture_image_samples : 1;
   usize ARB_shader_viewport_layer_array : 1;
-  usize ARB_shading_language_420_pack : 1;
+  usize ARB_shading_language_420pack : 1;
   usize ARB_shading_language_include : 1;
   usize ARB_shading_language_packing : 1;
   usize ARB_sparse_buffer : 1;
@@ -373,45 +373,168 @@ static struct {
   usize ARB_viewport_array : 1;
   usize ARB_window_pos:                       1;
   usize EXT_Cg_shader: 1;
+  usize EXT_EGL_image_array: 1;
+  usize EXT_EGL_image_external_wrap_modes: 1;
+  usize EXT_EGL_image_storage: 1;
+  usize EXT_YUV_target: 1;
   usize EXT_abgr:                             1;
   usize EXT_bindable_uniform: 1;
+  usize EXT_blend_func_extended: 1;
+  usize EXT_blit_framebuffer_params: 1;
+  usize EXT_buffer_storage: 1;
+  usize EXT_clip_control: 1;
+  usize EXT_clip_cull_distance: 1;
+  usize EXT_color_buffer_float: 1;
+  usize EXT_color_buffer_half_float: 1;
+  usize EXT_copy_image: 1;
   usize EXT_debug_label:1;
   usize EXT_debug_marker:1;
   usize EXT_direct_state_access: 1;
+  usize EXT_discard_framebuffer: 1;
+  usize EXT_disjoint_timer_query: 1;
+  usize EXT_draw_buffers2: 1;
+  usize EXT_draw_buffers_indexed: 1;
+  usize EXT_draw_instanced: 1;
+  usize EXT_external_buffer: 1;
+  usize EXT_fragment_invocation_density: 1;
   usize EXT_framebuffer_blit:                 1;
+  usize EXT_framebuffer_multisample: 1;
   usize EXT_framebuffer_object:               1;
   usize EXT_framebuffer_sRGB:                 1;
+  usize EXT_geometry_shader: 1;
+  usize EXT_geometry_shader4: 1;
+  usize EXT_gpu_shader4: 1;
+  usize EXT_gpu_shader5: 1;
+  usize EXT_import_sync_object: 1;
+  usize EXT_memory_object: 1;
+  usize EXT_memory_object_fd: 1;
+  usize EXT_multisampled_render_to_texture: 1;
+  usize EXT_multisampled_render_to_texture2: 1;
   usize EXT_packed_depth_stencil:             1;
+  usize EXT_packed_float: 1;
+  usize EXT_polygon_offset_clamp: 1;
+  usize EXT_post_depth_coverage: 1;
+  usize EXT_primitive_bounding_box: 1;
+  usize EXT_protected_textures: 1;
   usize EXT_provoking_vertex:                 1;
+  usize EXT_pvrtc_sRGB: 1;
+  usize EXT_raster_multisample: 1;
+  usize EXT_read_format_bgra: 1;
+  usize EXT_robustness: 1;
+  usize EXT_sRGB: 1;
+  usize EXT_sRGB_write_control: 1;
   usize EXT_semaphore : 1;
+  usize EXT_separate_shader_objects: 1;
+  usize EXT_shader_framebuffer_fetch: 1;
+  usize EXT_shader_image_load_formatted: 1;
+  usize EXT_shader_image_load_store: 1;
+  usize EXT_shader_integer_mix: 1;
+  usize EXT_shader_io_blocks: 1;
+  usize EXT_shader_non_constant_global_initializers: 1;
+  usize EXT_shader_texture_lod: 1;
+  usize EXT_shadow_samplers: 1;
+  usize EXT_sparse_texture2: 1;
+  usize EXT_tessellation_shader: 1;
+  usize EXT_texture_array: 1;
+  usize EXT_texture_border_clamp: 1;
+  usize EXT_texture_buffer: 1;
+  usize EXT_texture_buffer_object: 1;
   usize EXT_texture_compression_dxt1:         1;
+  usize EXT_texture_compression_latc: 1;
+  usize EXT_texture_compression_rgtc: 1;
   usize EXT_texture_compression_s3tc:         1;
+  usize EXT_texture_cube_map_array: 1;
   usize EXT_texture_filter_anisotropic:       1;
+  usize EXT_texture_filter_minmax: 1;
+  usize EXT_texture_format_BGRA8888: 1;
+  usize EXT_texture_format_sRGB_override: 1;
+  usize EXT_texture_integer: 1;
+  usize EXT_texture_lod: 1;
   usize EXT_texture_mirror_clamp:1;
+  usize EXT_texture_norm16: 1;
   usize EXT_texture_rectangle:                1;
   usize EXT_texture_sRGB_decode:              1;
+  usize EXT_texture_sRGB_R8: 1;
+  usize EXT_texture_shared_exponent: 1;
+  usize EXT_texture_storage: 1;
   usize EXT_texture_swizzle:                  1;
+  usize EXT_texture_type_2_10_10_10_REV: 1;
+  usize EXT_timer_query: 1;
+  usize EXT_transform_feedback2: 1;
   usize EXT_vertex_array_bgra:                1;
+  usize EXT_vertex_attrib_64bit: 1;
+  usize EXT_window_rectangles: 1;
+  usize EXTX_framebuffer_mixed_formats: 1;
+  usize KHR_blend_equation_advanced: 1;
+  usize KHR_blend_equation_advanced_coherent: 1;
   usize KHR_debug:                            1;
   usize KHR_context_flush_control:            1;
   usize KHR_no_error:                         1;
   usize KHR_parallel_shader_compile : 1;
+  usize KHR_robust_buffer_access_behavior: 1;
+  usize KHR_texture_compression_astc_ldr: 1;
+  usize KHR_texture_compression_astc_hdr: 1;
   usize KTX_buffer_region : 1;
   usize OES_EGL_image:                        1;
+  usize OES_EGL_image_external: 1;
+  usize OES_EGL_image_external_essl3: 1;
+  usize OES_EGL_sync: 1;
+  usize OES_compressed_ETC1_RGB8_texture: 1;
+  usize OES_depth24: 1;
+  usize OES_depth_texture: 1;
+  usize OES_depth_texture_cube_map: 1;
+  usize OES_element_index_uint: 1;
+  usize OES_framebuffer_object: 1;
+  usize OES_get_program_binary: 1;
+  usize OES_packed_depth_stencil: 1;
   usize OES_read_format:                      1;
+  usize OES_rgb8_rgba8: 1;
+  usize OES_shader_image_atomic: 1;
+  usize OES_sample_shading: 1;
+  usize OES_sample_variables: 1;
+  usize OES_shader_multisample_interpolation: 1;
+  usize OES_surfaceless_context: 1;
+  usize OES_standard_derivatives: 1;
+  usize OES_texture_3D: 1;
+  usize OES_texture_compression_astc: 1;
+  usize OES_texture_float: 1;
+  usize OES_texture_float_linear: 1;
+  usize OES_texture_format_sRGB_override: 1;
+  usize OES_texture_half_float: 1;
+  usize OES_texture_half_float_linear: 1;
+  usize OES_texture_npot: 1;
+  usize OES_texture_stencil8: 1;
+  usize OES_texture_storage_multisample_2d_array: 1;
+  usize OES_texture_type_2_10_10_10_REV: 1;
+  usize OES_texture_view: 1;
+  usize OES_vertex_array_object: 1;
+  usize OES_vertex_half_float: 1;
+  usize AMD_compressed_ATC_texture: 1;
+  usize AMD_multi_draw_indirect: 1;
+  usize AMD_seamless_cubemap_per_texture: 1;
+  usize AMD_shader_trinary_minmax:            1;
+  usize AMD_vertex_shader_viewport_index: 1;
+  usize AMD_vertex_shader_layer: 1;
+  usize ANDROID_extension_pack_es31a: 1;
   usize ANGLE_texture_compression_dxt3:       1;
   usize ANGLE_texture_compression_dxt5:       1;
-  usize AMD_shader_trinary_minmax:            1;
+  usize APPLE_clip_distance: 1;
+  usize APPLE_color_buffer_packed_float: 1;
+  usize APPLE_copy_texture_levels: 1;
   usize APPLE_rgb_422:1;
+  usize APPLE_texture_format_BGRA8888: 1;
+  usize ARM_shader_framebuffer_fetch_depth_stencil: 1;
   usize ATI_texture_float:                    1;
   usize ATI_texture_mirror_once:1;
+  usize IMG_read_format: 1;
+  usize IMG_texture_compression_pvrtc: 1;
   usize MESA_window_pos:                      1;
   usize NV_ES1_1_compatibility : 1;
   usize NV_ES3_1_compatibility : 1;
   usize NV_bindless_multi_draw_indirect : 1;
   usize NV_bindless_multi_draw_indirect_count : 1;
-  usize NV_bindless_texture : 1;
-  usize NV_blend_equation_advanced : 1;
+  usize NV_bindless_texture: 1;
+  usize NV_blend_equation_advanced: 1;
   usize NV_blend_equation_advanced_coherent : 1;
   usize NV_compute_program5 : 1;
   usize NV_compute_shader_derivatives : 1;
@@ -448,6 +571,7 @@ static struct {
   usize NV_shader_atomic_fp16_vector : 1;
   usize NV_shader_atomic_int64 : 1;
   usize NV_shader_buffer_load : 1;
+  usize NV_shader_noperspective_interpolation: 1;
   usize NV_shader_storage_buffer_object : 1;
   usize NV_shader_texture_footprint : 1;
   usize NV_shader_thread_group : 1;
@@ -473,108 +597,20 @@ static struct {
   usize NVX_nvenc_interop : 1;
   usize OVR_multiview : 1;
   usize OVR_multiview2 : 1;
+  usize OVR_multiview_multisampled_render_to_texture: 1;
+  usize QCOM_alpha_test: 1;
+  usize QCOM_texture_foveated: 1;
+  usize QCOM_tiled_rendering: 1;
+  usize QCOM_shader_framebuffer_fetch_noncoherent: 1;
+  usize QCOM_shader_framebuffer_fetch_rate: 1;
   usize S3_s3tc:                              1;
   usize SGIS_generate_mipmap:                 1;
-} exts;
-
-#if BUILD_DEVELOPMENT
-static bool ignoreExtension(std::string_view ext) {
-# define IGNORE(name) else if ("GL_"#name##sv == ext) return true;
-  if (false) {}
-  IGNORE(ARB_multitexture)             // 1.2
-  IGNORE(ARB_texture_border_clamp)     // 1.3
-  IGNORE(ARB_texture_compression)      // 1.3
-  IGNORE(ARB_texture_cube_map)         // 1.3
-  IGNORE(ARB_depth_texture)            // 1.4
-  IGNORE(ARB_point_parameters)         // 1.4
-  IGNORE(ARB_texture_mirrored_repeat)  // 1.4
-  IGNORE(ARB_occlusion_query)          // 1.5
-  IGNORE(ARB_vertex_buffer_object)     // 1.5
-  IGNORE(ARB_draw_buffers)             // 2.0
-  IGNORE(ARB_fragment_shader)          // 2.0
-  IGNORE(ARB_shader_objects)           // 2.0
-  IGNORE(ARB_shading_language_100)     // 2.0
-  IGNORE(ARB_texture_non_power_of_two) // 2.0
-  IGNORE(ARB_vertex_shader)            // 2.0
-  IGNORE(ARB_pixel_buffer_object)      // 2.1
-  IGNORE(EXT_copy_texture)             // 1.1
-  IGNORE(EXT_subtexture)               // 1.1
-  IGNORE(EXT_texture)                  // 1.1
-  IGNORE(EXT_texture_object)           // 1.1
-  IGNORE(EXT_vertex_array)             // 1.1
-  IGNORE(EXT_bgra)                     // 1.2
-  IGNORE(EXT_draw_range_elements)      // 1.2
-  IGNORE(EXT_packed_pixels)            // 1.2
-  IGNORE(EXT_texture3D)                // 1.2
-  IGNORE(EXT_texture_edge_clamp)       // 1.2
-  IGNORE(EXT_texture_cube_map)         // 1.3
-  IGNORE(EXT_blend_color)              // 1.3
-  IGNORE(EXT_blend_func_separate)      // 1.4
-  IGNORE(EXT_blend_minmax)             // 1.4
-  IGNORE(EXT_blend_subtract)           // 1.4
-  IGNORE(EXT_multi_draw_arrays)        // 1.4
-  IGNORE(EXT_point_parameters)         // 1.4
-  IGNORE(EXT_stencil_wrap)             // 1.4
-  IGNORE(EXT_texture_lod_bias)         // 1.4
-  IGNORE(EXT_blend_equation_separate)  // 2.0
-  IGNORE(EXT_pixel_buffer_object)      // 2.1
-  IGNORE(EXT_texture_sRGB)             // 2.1
-  IGNORE(APPLE_packed_pixels)          // 1.2
-  IGNORE(ATI_blend_equation_separate)  // 2.0
-  IGNORE(ATI_separate_stencil)         // 2.0
-  IGNORE(IBM_texture_mirrored_repeat)  // 1.4
-  IGNORE(INGR_blend_func_separate)     // 1.4
-  IGNORE(SGIS_texture_edge_clamp)      // 1.2
-  IGNORE(SGIS_texture_lod)             // 1.2
-  IGNORE(SGIS_texture_border_clamp)    // 1.3
-  IGNORE(SUN_multi_draw_arrays)        // 1.4
-  // Deprecated / Misc. Ignored
-  IGNORE(ARB_fragment_program)
-  IGNORE(ARB_fragment_program_shadow)
-  IGNORE(ARB_point_sprite)
-  IGNORE(ARB_shadow)
-  IGNORE(ARB_texture_env_add)
-  IGNORE(ARB_texture_env_combine)
-  IGNORE(ARB_texture_env_crossbar)
-  IGNORE(ARB_texture_env_dot3)
-  IGNORE(ARB_transpose_matrix)
-  IGNORE(ARB_vertex_program)
-  IGNORE(EXT_compiled_vertex_array)
-  IGNORE(EXT_depth_bounds_test)
-  IGNORE(EXT_framebuffer_multisample_blit_scaled)
-  IGNORE(EXT_fog_coord)
-  IGNORE(EXT_gpu_program_parameters)
-  IGNORE(EXT_rescale_normal)
-  IGNORE(EXT_texture_env_add)
-  IGNORE(EXT_texture_env_combine)
-  IGNORE(EXT_texture_env_dot3)
-  IGNORE(EXT_texture_shadow_funcs)
-  IGNORE(EXT_secondary_color)
-  IGNORE(EXT_separate_specular_color)
-  IGNORE(EXT_shadow_funcs)
-  IGNORE(EXT_stencil_two_side)
-  IGNORE(APPLE_client_storage)
-  IGNORE(APPLE_container_object_shareable)
-  IGNORE(APPLE_flush_render)
-  IGNORE(APPLE_row_bytes)
-  IGNORE(APPLE_texture_range)
-  IGNORE(ATI_draw_buffers)
-  IGNORE(ATI_texture_env_combine3)
-  IGNORE(ATI_fragment_shader)
-  IGNORE(IBM_multimode_draw_arrays)
-  IGNORE(IBM_rasterpos_clip)
-  IGNORE(MESA_pack_invert)
-  IGNORE(NV_blend_square)
-  IGNORE(NV_fog_distance)
-  IGNORE(NV_light_max_exponent)
-  IGNORE(NV_texgen_reflection)
-  IGNORE(NV_texture_env_combine4)
-  IGNORE(NV_register_combiners)
-  IGNORE(NV_register_combiners2)
-  return false;
-# undef IGNORE
-}
+#if PLATFORM_WINDOWS
+  usize EXT_memory_object_win32: 1;
+  usize EXT_semaphore_win32: 1;
+  usize EXT_win32_keyed_mutex: 1;
 #endif
+} exts;
 
 #define TEST(name, body) else if ("GL_"#name##sv == ext) {  \
     exts.name = true;                                       \
@@ -776,7 +812,7 @@ static bool setupExtensionGL4(std::string_view ext) {
   })
   TEST(ARB_shader_texture_image_samples, {}) // 4.5
   TEST(ARB_shader_viewport_layer_array, {}) // 4.3
-  TEST(ARB_shading_language_420_pack, {}) // 4.2
+  TEST(ARB_shading_language_420pack, {}) // 4.2
   TEST(ARB_shading_language_packing, {}) // 4.0
   TEST(ARB_spirv_extensions, {}) // 4.6
   TEST(ARB_stencil_texturing, {}) // 4.3
@@ -893,8 +929,20 @@ static bool setupExtensionNonCore(std::string_view ext) {
 static bool setupExtensionEXT(std::string_view ext) {
   if constexpr (false) {}
   TEST(EXT_Cg_shader, {})
+  TEST(EXT_EGL_image_array, {})
+  TEST(EXT_EGL_image_external_wrap_modes, {})
+  TEST(EXT_EGL_image_storage, {})
+  TEST(EXT_YUV_target, {})
   TEST(EXT_abgr, {})
   TEST(EXT_bindable_uniform, {})
+  TEST(EXT_blend_func_extended, {})
+  TEST(EXT_blit_framebuffer_params, {})
+  TEST(EXT_buffer_storage, {})
+  TEST(EXT_clip_control, {})
+  TEST(EXT_clip_cull_distance, {})
+  TEST(EXT_color_buffer_float, {})
+  TEST(EXT_color_buffer_half_float, {})
+  TEST(EXT_copy_image, {})
   TEST(EXT_debug_label, {
 
   })
@@ -904,39 +952,103 @@ static bool setupExtensionEXT(std::string_view ext) {
   TEST(EXT_direct_state_access, {
 
   })
+  TEST(EXT_discard_framebuffer, {})
+  TEST(EXT_disjoint_timer_query, {})
+  TEST(EXT_draw_buffers2, {})
+  TEST(EXT_draw_buffers_indexed, {})
+  TEST(EXT_draw_instanced, {})
+  TEST(EXT_external_buffer, {})
+  TEST(EXT_fragment_invocation_density, {})
   TEST(EXT_framebuffer_blit, { // 3.0
 
   })
+  TEST(EXT_framebuffer_multisample, {})
   TEST(EXT_framebuffer_object, { // 3.0
 
   })
   TEST(EXT_framebuffer_sRGB, { // 3.0
 
   })
-  TEST(EXT_texture_mirror_clamp, {
-
-  })
+  TEST(EXT_geometry_shader, {})
+  TEST(EXT_geometry_shader4, {})
+  TEST(EXT_gpu_shader4, {})
+  TEST(EXT_gpu_shader5, {})
+  TEST(EXT_import_sync_object, {})
+  TEST(EXT_memory_object, {})
+  TEST(EXT_memory_object_fd, {})
+  TEST(EXT_multisampled_render_to_texture, {})
+  TEST(EXT_multisampled_render_to_texture2, {})
   TEST(EXT_packed_depth_stencil, { // 3.0
 
   })
+  TEST(EXT_packed_float, {})
+  TEST(EXT_polygon_offset_clamp, {})
+  TEST(EXT_post_depth_coverage, {})
+  TEST(EXT_primitive_bounding_box, {})
+  TEST(EXT_protected_textures, {})
   TEST(EXT_provoking_vertex, { // 3.2
 
   })
+  TEST(EXT_pvrtc_sRGB, {})
+  TEST(EXT_raster_multisample, {})
+  TEST(EXT_read_format_bgra, {})
+  TEST(EXT_robustness, {})
+  TEST(EXT_sRGB, {})
+  TEST(EXT_sRGB_write_control, {})
+  TEST(EXT_semaphore, {})
+  TEST(EXT_separate_shader_objects, {})
+  TEST(EXT_shader_framebuffer_fetch, {})
+  TEST(EXT_shader_image_load_formatted, {})
+  TEST(EXT_shader_image_load_store, {})
+  TEST(EXT_shader_integer_mix, {})
+  TEST(EXT_shader_io_blocks, {})
+  TEST(EXT_shader_non_constant_global_initializers, {})
+  TEST(EXT_shader_texture_lod, {})
+  TEST(EXT_shadow_samplers, {})
+  TEST(EXT_sparse_texture2, {})
+  TEST(EXT_tessellation_shader, {})
+  TEST(EXT_texture_array, {})
+  TEST(EXT_texture_border_clamp, {})
+  TEST(EXT_texture_buffer, {})
+  TEST(EXT_texture_buffer_object, {})
   TEST(EXT_texture_compression_dxt1, {})
+  TEST(EXT_texture_compression_latc, {})
+  TEST(EXT_texture_compression_rgtc, {})
   TEST(EXT_texture_compression_s3tc, {})
+  TEST(EXT_texture_cube_map_array, {})
   TEST(EXT_texture_filter_anisotropic, {})
+  TEST(EXT_texture_filter_minmax, {})
+  TEST(EXT_texture_format_BGRA8888, {})
+  TEST(EXT_texture_format_sRGB_override, {})
+  TEST(EXT_texture_integer, {})
+  TEST(EXT_texture_lod, {})
+  TEST(EXT_texture_mirror_clamp, {
+
+  })
+  TEST(EXT_texture_norm16, {})
   TEST(EXT_texture_rectangle, { // 3.1
 
   })
-  TEST(EXT_texture_sRGB_decode, {
-
-  })
+  TEST(EXT_texture_sRGB_decode, {})
+  TEST(EXT_texture_sRGB_R8, {})
+  TEST(EXT_texture_shared_exponent, {})
+  TEST(EXT_texture_storage, {})
   TEST(EXT_texture_swizzle, { // 3.3
 
   })
+  TEST(EXT_texture_type_2_10_10_10_REV, {})
+  TEST(EXT_timer_query, {})
+  TEST(EXT_transform_feedback2, {})
   TEST(EXT_vertex_array_bgra, { // 3.2
 
   })
+  TEST(EXT_vertex_attrib_64bit, {})
+  TEST(EXT_window_rectangles, {})
+#if PLATFORM_WINDOWS
+  TEST(EXT_memory_object_win32, {})
+  TEST(EXT_semaphore_win32, {})
+  TEST(EXT_win32_keyed_mutex, {})
+#endif
   else {
     return false;
   }
@@ -944,26 +1056,85 @@ static bool setupExtensionEXT(std::string_view ext) {
 
 static bool setupExtensionMisc(std::string_view ext) {
   if constexpr (false) {}
+  TEST(EXTX_framebuffer_mixed_formats, {})
+  TEST(KHR_blend_equation_advanced, {})
+  TEST(KHR_blend_equation_advanced_coherent, {})
   TEST(KHR_context_flush_control, {
   })
   TEST(KHR_debug, {
   })
   TEST(KHR_no_error, {
   })
-  TEST(OES_EGL_image, {
-
-  })
+  TEST(KHR_robust_buffer_access_behavior, {})
+  TEST(KHR_texture_compression_astc_ldr, {})
+  TEST(KHR_texture_compression_astc_hdr, {})
+  TEST(OES_EGL_image, {})
+  TEST(OES_EGL_image_external, {})
+  TEST(OES_EGL_image_external_essl3, {})
+  TEST(OES_EGL_sync, {})
+  TEST(OES_compressed_ETC1_RGB8_texture, {})
+  TEST(OES_depth24, {})
+  TEST(OES_depth_texture, {})
+  TEST(OES_depth_texture_cube_map, {})
+  TEST(OES_element_index_uint, {})
+  TEST(OES_framebuffer_object, {})
+  TEST(OES_get_program_binary, {})
+  TEST(OES_packed_depth_stencil, {})
   TEST(OES_read_format, { // 4.1
 
   })
+  TEST(OES_rgb8_rgba8, {})
+  TEST(OES_sample_shading, {})
+  TEST(OES_sample_variables, {})
+  TEST(OES_shader_image_atomic, {})
+  TEST(OES_shader_multisample_interpolation, {})
+  TEST(OES_standard_derivatives, {})
+  TEST(OES_surfaceless_context, {})
+  TEST(OES_texture_3D, {})
+  TEST(OES_texture_compression_astc, {})
+  TEST(OES_texture_float, {})
+  TEST(OES_texture_float_linear, {})
+  TEST(OES_texture_format_sRGB_override, {})
+  TEST(OES_texture_half_float, {})
+  TEST(OES_texture_half_float_linear, {})
+  TEST(OES_texture_npot, {})
+  TEST(OES_texture_type_2_10_10_10_REV, {})
+  TEST(OES_texture_stencil8, {})
+  TEST(OES_texture_storage_multisample_2d_array, {})
+  TEST(OES_texture_view, {})
+  TEST(OES_vertex_array_object, {})
+  TEST(OES_vertex_half_float, {})
+  TEST(AMD_compressed_ATC_texture, {})
+  TEST(AMD_multi_draw_indirect, {
+
+  })
+  TEST(AMD_seamless_cubemap_per_texture, {})
+  TEST(AMD_shader_trinary_minmax, {})
+  TEST(AMD_vertex_shader_layer, {})
+  TEST(AMD_vertex_shader_viewport_index, {})
+  TEST(ANDROID_extension_pack_es31a, {})
   TEST(ANGLE_texture_compression_dxt3, {})
   TEST(ANGLE_texture_compression_dxt5, {})
+  TEST(APPLE_clip_distance, {})
+  TEST(APPLE_color_buffer_packed_float, {})
+  TEST(APPLE_copy_texture_levels, {})
   TEST(APPLE_rgb_422, {})
-  TEST(AMD_shader_trinary_minmax, {})
+  TEST(APPLE_texture_format_BGRA8888, {})
+  TEST(ARM_shader_framebuffer_fetch_depth_stencil, {})
   TEST(ATI_texture_float, {}) // 3.0
   TEST(ATI_texture_mirror_once, {})
+  TEST(IMG_read_format, {})
+  TEST(IMG_texture_compression_pvrtc, {})
   TEST(MESA_window_pos, {
   })
+  TEST(OVR_multiview, {})
+  TEST(OVR_multiview2, {})
+  TEST(OVR_multiview_multisampled_render_to_texture, {})
+  TEST(QCOM_alpha_test, {})
+  TEST(QCOM_tiled_rendering, {})
+  TEST(QCOM_texture_foveated, {})
+  TEST(QCOM_shader_framebuffer_fetch_noncoherent, {})
+  TEST(QCOM_shader_framebuffer_fetch_rate, {})
   TEST(S3_s3tc, {})
   TEST(SGIS_generate_mipmap, { // 3.0
   })
@@ -977,6 +1148,7 @@ static bool setupExtensionNV(std::string_view ext) {
   TEST(NV_packed_depth_stencil, {}) // 3.0
   TEST(NV_primitive_restart, {
   })
+  TEST(NV_shader_noperspective_interpolation, {})
   TEST(NV_texture_barrier, { // 4.5
 
   })
@@ -990,10 +1162,102 @@ static bool setupExtensionNV(std::string_view ext) {
 
 #if BUILD_DEVELOPMENT
 static void setupExtensionMissing(std::string_view ext) {
-  if (ignoreExtension(ext)) {}
+# define IGNORE(name) else if ("GL_"#name##sv == ext) {}
+  if (false) {}
+  IGNORE(ARB_multitexture)             // 1.2
+  IGNORE(ARB_texture_border_clamp)     // 1.3
+  IGNORE(ARB_texture_compression)      // 1.3
+  IGNORE(ARB_texture_cube_map)         // 1.3
+  IGNORE(ARB_depth_texture)            // 1.4
+  IGNORE(ARB_point_parameters)         // 1.4
+  IGNORE(ARB_texture_mirrored_repeat)  // 1.4
+  IGNORE(ARB_occlusion_query)          // 1.5
+  IGNORE(ARB_vertex_buffer_object)     // 1.5
+  IGNORE(ARB_draw_buffers)             // 2.0
+  IGNORE(ARB_fragment_shader)          // 2.0
+  IGNORE(ARB_shader_objects)           // 2.0
+  IGNORE(ARB_shading_language_100)     // 2.0
+  IGNORE(ARB_texture_non_power_of_two) // 2.0
+  IGNORE(ARB_vertex_shader)            // 2.0
+  IGNORE(ARB_pixel_buffer_object)      // 2.1
+  IGNORE(EXT_copy_texture)             // 1.1
+  IGNORE(EXT_subtexture)               // 1.1
+  IGNORE(EXT_texture)                  // 1.1
+  IGNORE(EXT_texture_object)           // 1.1
+  IGNORE(EXT_vertex_array)             // 1.1
+  IGNORE(EXT_bgra)                     // 1.2
+  IGNORE(EXT_draw_range_elements)      // 1.2
+  IGNORE(EXT_packed_pixels)            // 1.2
+  IGNORE(EXT_texture3D)                // 1.2
+  IGNORE(EXT_texture_edge_clamp)       // 1.2
+  IGNORE(EXT_texture_cube_map)         // 1.3
+  IGNORE(EXT_blend_color)              // 1.3
+  IGNORE(EXT_blend_func_separate)      // 1.4
+  IGNORE(EXT_blend_minmax)             // 1.4
+  IGNORE(EXT_blend_subtract)           // 1.4
+  IGNORE(EXT_multi_draw_arrays)        // 1.4
+  IGNORE(EXT_point_parameters)         // 1.4
+  IGNORE(EXT_stencil_wrap)             // 1.4
+  IGNORE(EXT_texture_lod_bias)         // 1.4
+  IGNORE(EXT_blend_equation_separate)  // 2.0
+  IGNORE(EXT_pixel_buffer_object)      // 2.1
+  IGNORE(EXT_texture_sRGB)             // 2.1
+  IGNORE(APPLE_packed_pixels)          // 1.2
+  IGNORE(ATI_blend_equation_separate)  // 2.0
+  IGNORE(ATI_separate_stencil)         // 2.0
+  IGNORE(IBM_texture_mirrored_repeat)  // 1.4
+  IGNORE(INGR_blend_func_separate)     // 1.4
+  IGNORE(SGIS_texture_edge_clamp)      // 1.2
+  IGNORE(SGIS_texture_lod)             // 1.2
+  IGNORE(SGIS_texture_border_clamp)    // 1.3
+  IGNORE(SUN_multi_draw_arrays)        // 1.4
+  // Deprecated / Misc. Ignored
+  IGNORE(ARB_fragment_program)
+  IGNORE(ARB_fragment_program_shadow)
+  IGNORE(ARB_point_sprite)
+  IGNORE(ARB_shadow)
+  IGNORE(ARB_texture_env_add)
+  IGNORE(ARB_texture_env_combine)
+  IGNORE(ARB_texture_env_crossbar)
+  IGNORE(ARB_texture_env_dot3)
+  IGNORE(ARB_transpose_matrix)
+  IGNORE(ARB_vertex_program)
+  IGNORE(EXT_compiled_vertex_array)
+  IGNORE(EXT_depth_bounds_test)
+  IGNORE(EXT_framebuffer_multisample_blit_scaled)
+  IGNORE(EXT_fog_coord)
+  IGNORE(EXT_gpu_program_parameters)
+  IGNORE(EXT_rescale_normal)
+  IGNORE(EXT_texture_env_add)
+  IGNORE(EXT_texture_env_combine)
+  IGNORE(EXT_texture_env_dot3)
+  IGNORE(EXT_texture_shadow_funcs)
+  IGNORE(EXT_secondary_color)
+  IGNORE(EXT_separate_specular_color)
+  IGNORE(EXT_shadow_funcs)
+  IGNORE(EXT_stencil_two_side)
+  IGNORE(APPLE_client_storage)
+  IGNORE(APPLE_container_object_shareable)
+  IGNORE(APPLE_flush_render)
+  IGNORE(APPLE_row_bytes)
+  IGNORE(APPLE_texture_range)
+  IGNORE(ATI_draw_buffers)
+  IGNORE(ATI_texture_env_combine3)
+  IGNORE(ATI_fragment_shader)
+  IGNORE(IBM_multimode_draw_arrays)
+  IGNORE(IBM_rasterpos_clip)
+  IGNORE(MESA_pack_invert)
+  IGNORE(NV_blend_square)
+  IGNORE(NV_fog_distance)
+  IGNORE(NV_light_max_exponent)
+  IGNORE(NV_texgen_reflection)
+  IGNORE(NV_texture_env_combine4)
+  IGNORE(NV_register_combiners)
+  IGNORE(NV_register_combiners2)
   else {
     LOG(App, Warn, "Unknown GL Extension: %.*s", static_cast<u32>(ext.size()), ext.data());
   }
+# undef IGNORE
 }
 #else
 static void setupExtensionMissing(std::string_view ext) {}

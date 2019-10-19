@@ -237,6 +237,7 @@ static struct {
   usize ARB_ES3_compatibility:                1;
   usize ARB_ES3_1_compatibility:                1;
   usize ARB_ES3_2_compatibility:                1;
+  usize ARB_arrays_of_arrays: 1;
   usize ARB_base_instance : 1;
   usize ARB_bindless_texture : 1;
   usize ARB_blend_func_extended : 1;
@@ -254,11 +255,21 @@ static struct {
   usize ARB_copy_image : 1;
   usize ARB_cull_distance : 1;
   usize ARB_debug_output:                     1;
+  usize ARB_depth_buffer_float: 1;
+  usize ARB_depth_clamp: 1;
   usize ARB_depth_texture:                    1;
+  usize ARB_derivative_control: 1;
+  usize ARB_direct_state_access: 1;
+  usize ARB_draw_buffers_blend: 1;
   usize ARB_draw_elements_base_vertex:        1;
+  usize ARB_draw_indirect:1;
+  usize ARB_draw_instanced: 1;
+  usize ARB_enhanced_layouts: 1;
   usize ARB_explicit_attrib_location:         1;
   usize ARB_explicit_uniform_location:        1;
   usize ARB_fragment_coord_conventions:       1;
+  usize ARB_fragment_layer_viewport: 1;
+  usize ARB_fragment_shader_interlock: 1;
   usize ARB_framebuffer_no_attachments : 1;
   usize ARB_framebuffer_object:               1;
   usize ARB_framebuffer_sRGB:                 1;
@@ -271,6 +282,8 @@ static struct {
   usize ARB_gpu_shader_int64 : 1;
   usize ARB_half_float_pixel:                 1;
   usize ARB_half_float_vertex:                1;
+  usize ARB_imaging: 1;
+  usize ARB_indirect_parameters: 1;
   usize ARB_instanced_arrays : 1;
   usize ARB_internalformat_query:             1;
   usize ARB_internalformat_query2:            1;
@@ -282,15 +295,29 @@ static struct {
   usize ARB_multisample:                      1;
   usize ARB_occlusion_query2:                 1;
   usize ARB_parallel_shader_compile : 1;
+  usize ARB_pipeline_statistics_query: 1;
+  usize ARB_polygon_offset_clamp: 1;
+  usize ARB_post_depth_coverage:1;
   usize ARB_program_interface_query:          1;
   usize ARB_provoking_vertex:                 1;
   usize ARB_query_buffer_object : 1;
+  usize ARB_robust_buffer_access_behavior: 1;
   usize ARB_robustness:                       1;
+  usize ARB_sample_locations: 1;
+  usize ARB_sample_shading:1;
   usize ARB_sampler_objects:                  1;
+  usize ARB_seamless_cube_map: 1;
+  usize ARB_seamless_cubemap_per_texture: 1;
   usize ARB_separate_shader_objects:          1;
   usize ARB_shader_atomic_counters : 1;
   usize ARB_shader_atomic_counter_ops : 1;
+  usize ARB_shader_ballot:1;
+  usize ARB_shader_bit_encoding:1;
+  usize ARB_shader_clock: 1;
   usize ARB_shader_draw_parameters : 1;
+  usize ARB_shader_group_vote: 1;
+  usize ARB_shader_image_load_store: 1;
+  usize ARB_shader_image_size: 1;
   usize ARB_shader_precision : 1;
   usize ARB_shader_storage_buffer_object : 1;
   usize ARB_shader_subroutine : 1;
@@ -304,7 +331,8 @@ static struct {
   usize ARB_sparse_texture : 1;
   usize ARB_sparse_texture2 : 1;
   usize ARB_sparse_texture_clamp : 1;
-  usize ARB_spirv_dimensions : 1;
+  usize ARB_spirv_extensions : 1;
+  usize ARB_stencil_texturing: 1;
   usize ARB_sync:                             1;
   usize ARB_tessellation_shader : 1;
   usize ARB_texture_barrier : 1;
@@ -315,9 +343,19 @@ static struct {
   usize ARB_texture_compression_rgtc : 1;
   usize ARB_texture_cube_map_array : 1;
   usize ARB_texture_filter_anisotropic:       1;
+  usize ARB_texture_filter_minmax: 1;
   usize ARB_texture_float:                    1;
+  usize ARB_texture_gather:1;
+  usize ARB_texture_mirror_clamp_to_edge: 1;
+  usize ARB_texture_multisample: 1;
+  usize ARB_texture_query_levels: 1;
+  usize ARB_texture_query_lod;
   usize ARB_texture_rectangle:                1;
+  usize ARB_texture_rg: 1;
+  usize ARB_texture_rgb10_a2ui:1;
+  usize ARB_texture_stencil8:1;
   usize ARB_texture_storage:                  1;
+  usize ARB_texture_storage_multisample: 1;
   usize ARB_texture_swizzle:                  1;
   usize ARB_texture_view : 1;
   usize ARB_timer_query : 1;
@@ -334,7 +372,12 @@ static struct {
   usize ARB_vertex_type_2_10_10_10_rev : 1;
   usize ARB_viewport_array : 1;
   usize ARB_window_pos:                       1;
+  usize EXT_Cg_shader: 1;
   usize EXT_abgr:                             1;
+  usize EXT_bindable_uniform: 1;
+  usize EXT_debug_label:1;
+  usize EXT_debug_marker:1;
+  usize EXT_direct_state_access: 1;
   usize EXT_framebuffer_blit:                 1;
   usize EXT_framebuffer_object:               1;
   usize EXT_framebuffer_sRGB:                 1;
@@ -344,6 +387,7 @@ static struct {
   usize EXT_texture_compression_dxt1:         1;
   usize EXT_texture_compression_s3tc:         1;
   usize EXT_texture_filter_anisotropic:       1;
+  usize EXT_texture_mirror_clamp:1;
   usize EXT_texture_rectangle:                1;
   usize EXT_texture_sRGB_decode:              1;
   usize EXT_texture_swizzle:                  1;
@@ -358,7 +402,9 @@ static struct {
   usize ANGLE_texture_compression_dxt3:       1;
   usize ANGLE_texture_compression_dxt5:       1;
   usize AMD_shader_trinary_minmax:            1;
+  usize APPLE_rgb_422:1;
   usize ATI_texture_float:                    1;
+  usize ATI_texture_mirror_once:1;
   usize MESA_window_pos:                      1;
   usize NV_ES1_1_compatibility : 1;
   usize NV_ES3_1_compatibility : 1;
@@ -494,6 +540,8 @@ static bool ignoreExtension(std::string_view ext) {
   IGNORE(ARB_transpose_matrix)
   IGNORE(ARB_vertex_program)
   IGNORE(EXT_compiled_vertex_array)
+  IGNORE(EXT_depth_bounds_test)
+  IGNORE(EXT_framebuffer_multisample_blit_scaled)
   IGNORE(EXT_fog_coord)
   IGNORE(EXT_gpu_program_parameters)
   IGNORE(EXT_rescale_normal)
@@ -505,6 +553,11 @@ static bool ignoreExtension(std::string_view ext) {
   IGNORE(EXT_separate_specular_color)
   IGNORE(EXT_shadow_funcs)
   IGNORE(EXT_stencil_two_side)
+  IGNORE(APPLE_client_storage)
+  IGNORE(APPLE_container_object_shareable)
+  IGNORE(APPLE_flush_render)
+  IGNORE(APPLE_row_bytes)
+  IGNORE(APPLE_texture_range)
   IGNORE(ATI_draw_buffers)
   IGNORE(ATI_texture_env_combine3)
   IGNORE(ATI_fragment_shader)
@@ -531,35 +584,122 @@ static void setupExtension(std::string_view ext) {
   if (ext.empty()) {} // The GL_EXTENSIONS string can end with a space.
   TEST(ARB_ES2_compatibility, { // 4.1
   })
+  TEST(ARB_ES3_compatibility, { // 4.3
+
+  })
+  TEST(ARB_ES3_1_compatibility, { // 4.5
+
+  })
+  TEST(ARB_ES3_2_compatibility, {
+
+  })
+  TEST(ARB_arrays_of_arrays, {})
+  TEST(ARB_base_instance, {
+
+  })
+  TEST(ARB_bindless_texture, {
+
+  })
+  TEST(ARB_blend_func_extended, { // 3.3
+
+  })
+  TEST(ARB_buffer_storage, { // 4.4
+
+  })
   TEST(ARB_clear_buffer_object, { // 4.3
+  })
+  TEST(ARB_clear_texture, { // 4.4
+
+  })
+  TEST(ARB_clip_control, { // 4.5
+
   })
   TEST(ARB_color_buffer_float, {
   })
   TEST(ARB_compressed_texture_pixel_storage, { // 4.2
   })
+  TEST(ARB_compute_shader, { // 4.3
+
+  })
+  TEST(ARB_compute_variable_group_size, {
+
+  })
+  TEST(ARB_conservative_depth, {})
+  TEST(ARB_conditional_render_inverted, { // 4.5
+
+  })
   TEST(ARB_copy_buffer, { // 3.0
+  })
+  TEST(ARB_copy_image, { // 4.3
+
+  })
+  TEST(ARB_cull_distance, { // 4.5
+
   })
   TEST(ARB_debug_output, { // 4.3
   })
+  TEST(ARB_depth_buffer_float, { // 3.0
+
+  })
+  TEST(ARB_depth_clamp, {}) // 3.2
+  TEST(ARB_derivative_control, {}) // 4.5
+  TEST(ARB_direct_state_access, { // 4.5
+
+  })
+  TEST(ARB_draw_buffers_blend, { // 4.0
+
+  })
   TEST(ARB_draw_elements_base_vertex, { // 3.2
   })
+  TEST(ARB_draw_indirect, { // 4.3
+
+  })
+  TEST(ARB_draw_instanced, { // 3.1
+
+  })
+  TEST(ARB_enhanced_layouts, {}) // 4.4
   TEST(ARB_explicit_attrib_location, { // 3.3
   })
   TEST(ARB_explicit_uniform_location, { // 4.3
   })
   TEST(ARB_fragment_coord_conventions, {
   })
+  TEST(ARB_fragment_layer_viewport, {}) // 4.3
+  TEST(ARB_fragment_shader_interlock, {})
+  TEST(ARB_framebuffer_no_attachments, {}) // 4.3
   TEST(ARB_framebuffer_object, { // 3.0
   })
   TEST(ARB_framebuffer_sRGB, { // 3.0
+  })
+  TEST(ARB_geometry_shader4, { // 3.2
+
   })
   TEST(ARB_get_program_binary, { // 4.1
   })
   TEST(ARB_get_texture_sub_image, { // 4.5
   })
+  TEST(ARB_gl_spirv, { // 4.6
+
+  })
+  TEST(ARB_gpu_shader5, { // 4.0
+
+  })
+  TEST(ARB_gpu_shader_fp64, { // 4.0
+
+  })
+  TEST(ARB_gpu_shader_int64, {
+
+  })
   TEST(ARB_half_float_pixel, { // 3.1
   })
   TEST(ARB_half_float_vertex, { // 3.1
+  })
+  TEST(ARB_imaging, {})
+  TEST(ARB_indirect_parameters, { // 4.6
+
+  })
+  TEST(ARB_instanced_arrays, { // 3.3
+
   })
   TEST(ARB_internalformat_query, { // 4.2
   })
@@ -573,43 +713,174 @@ static void setupExtension(std::string_view ext) {
   })
   TEST(ARB_multi_bind, { // 4.4
   })
+  TEST(ARB_multi_draw_indirect, { // 4.3
+
+  })
   TEST(ARB_multisample, { // 3.0
   })
   TEST(ARB_occlusion_query2, { // 3.3
   })
+  TEST(ARB_parallel_shader_compile, {})
+  TEST(ARB_pipeline_statistics_query, {}) // 4.6
+  TEST(ARB_polygon_offset_clamp, {}) // 4.6
+  TEST(ARB_post_depth_coverage, {})
   TEST(ARB_program_interface_query, { // 4.3
   })
   TEST(ARB_provoking_vertex, { // 3.2
   })
+  TEST(ARB_query_buffer_object, {}) // 4.4
+  TEST(ARB_robust_buffer_access_behavior, {})
   TEST(ARB_robustness, { // 4.5
+  })
+  TEST(ARB_seamless_cube_map, {}) // 3.2
+  TEST(ARB_seamless_cubemap_per_texture, {}) // 3.2
+  TEST(ARB_sample_locations, {
+
+  })
+  TEST(ARB_sample_shading, { // 4.0
+
   })
   TEST(ARB_sampler_objects, { // 3.3
   })
   TEST(ARB_separate_shader_objects, { // 4.1
   })
+  TEST(ARB_shader_atomic_counter_ops, {})
+  TEST(ARB_shader_atomic_counters, {}) // 4.2
+  TEST(ARB_shader_ballot, {})
+  TEST(ARB_shader_bit_encoding, { // 3.3
+
+  })
+  TEST(ARB_shader_clock, {})
+  TEST(ARB_shader_draw_parameters, {}) // 4.6
+  TEST(ARB_shader_group_vote, {})
+  TEST(ARB_shader_image_load_store, { // 4.2
+
+  })
+  TEST(ARB_shader_image_size, {}) // 4.3
+  TEST(ARB_shader_precision, {})
+  TEST(ARB_shader_storage_buffer_object, { // 4.3
+
+  })
+  TEST(ARB_shader_subroutine, { // 4.0
+
+  })
+  TEST(ARB_shader_texture_image_samples, {}) // 4.5
   TEST(ARB_shader_texture_lod, {
   })
+  TEST(ARB_shader_viewport_layer_array, {}) // 4.3
+  TEST(ARB_shading_language_420_pack, {}) // 4.2
+  TEST(ARB_shading_language_include, {
+
+  })
+  TEST(ARB_shading_language_packing, {}) // 4.0
+  TEST(ARB_sparse_buffer, {
+
+  })
+  TEST(ARB_sparse_texture, {
+
+  })
+  TEST(ARB_sparse_texture2, {})
+  TEST(ARB_sparse_texture_clamp, {})
+  TEST(ARB_spirv_extensions, {}) // 4.6
+  TEST(ARB_stencil_texturing, {}) // 4.3
   TEST(ARB_sync, { // 3.2
+
+  })
+  TEST(ARB_tessellation_shader, { // 4.0
+
+  })
+  TEST(ARB_texture_barrier, {}) // 4.5
+  TEST(ARB_texture_buffer_object, { // 3.1
+
+  })
+  TEST(ARB_texture_buffer_object_rgb32, {
+
+  })
+  TEST(ARB_texture_buffer_range, { // 4.3
+
   })
   TEST(ARB_texture_filter_anisotropic, {
+
   })
+  TEST(ARB_texture_compression_bptc, {}) // 4.2
+  TEST(ARB_texture_compression_rgtc, {}) // 3.0
+  TEST(ARB_texture_cube_map_array, { // 4.0
+
+  })
+  TEST(ARB_texture_filter_minmax, {})
   TEST(ARB_texture_float, { // 3.0
   })
+  TEST(ARB_texture_gather, { // 4.0
+
+  })
+  TEST(ARB_texture_mirror_clamp_to_edge, {}) // 4.4
+  TEST(ARB_texture_query_lod, { // 4.0
+
+  })
+  TEST(ARB_texture_multisample, { // 3.2
+
+  })
+  TEST(ARB_texture_query_levels, {}) // 4.3
+  TEST(ARB_texture_query_lod, {}) // 4.0
+  TEST(ARB_texture_rectangle, { // 3.1
+  })
+  TEST(ARB_texture_rg, {}) // 3.0
+  TEST(ARB_texture_rgb10_a2ui, { // 3.3
+
+  })
+  TEST(ARB_texture_stencil8, {})
   TEST(ARB_texture_storage, { // 4.2
+  })
+  TEST(ARB_texture_storage_multisample, { // 4.3
+
   })
   TEST(ARB_texture_swizzle, { // 3.3
   })
-  TEST(ARB_texture_rectangle, { // 3.1
+  TEST(ARB_texture_view, { // 4.3
+
   })
+  TEST(ARB_timer_query, { // 3.3
+
+  })
+  TEST(ARB_transform_feedback2, { // 4.0
+
+  })
+  TEST(ARB_transform_feedback3, { // 4.0
+
+  })
+  TEST(ARB_transform_feedback_instanced, {})
+  TEST(ARB_transform_feedback_overflow_query, {})
+  TEST(ARB_uniform_buffer_object, {}) // 3.1
   TEST(ARB_vertex_array_object, { // 3.0
+  })
+  TEST(ARB_vertex_attrib_64bit, { // 4.1
+
+  })
+  TEST(ARB_vertex_type_10f_11f_11f_rev, {})
+  TEST(ARB_vertex_type_2_10_10_10_rev, { // 3.3
+
   })
   TEST(ARB_vertex_attrib_binding, { // 4.3
   })
   TEST(ARB_vertex_array_bgra, { // 3.2
   })
+  TEST(ARB_viewport_array, { // 4.1
+
+  })
   TEST(ARB_window_pos, {
   })
+  TEST(EXT_Cg_shader, {})
   TEST(EXT_abgr, {})
+  TEST(EXT_bindable_uniform, {})
+  TEST(EXT_debug_label, {
+
+  })
+  TEST(EXT_debug_marker, {
+
+  })
+  TEST(EXT_direct_state_access, {
+
+  })
   TEST(EXT_framebuffer_blit, { // 3.0
 
   })
@@ -617,6 +888,9 @@ static void setupExtension(std::string_view ext) {
 
   })
   TEST(EXT_framebuffer_sRGB, { // 3.0
+
+  })
+  TEST(EXT_texture_mirror_clamp, {
 
   })
   TEST(EXT_packed_depth_stencil, { // 3.0
@@ -654,12 +928,17 @@ static void setupExtension(std::string_view ext) {
   })
   TEST(ANGLE_texture_compression_dxt3, {})
   TEST(ANGLE_texture_compression_dxt5, {})
+  TEST(APPLE_rgb_422, {})
   TEST(AMD_shader_trinary_minmax, {})
   TEST(ATI_texture_float, {}) // 3.0
+  TEST(ATI_texture_mirror_once, {})
   TEST(MESA_window_pos, {
   })
   TEST(NV_packed_depth_stencil, {}) // 3.0
   TEST(NV_primitive_restart, {
+  })
+  TEST(NV_texture_barrier, { // 4.5
+
   })
   TEST(NV_texture_rectangle, { // 3.1
   })
@@ -735,7 +1014,7 @@ void* renderMain(void* arg) {
       switch (glGetError()) {
       default:
         glCheck();
-        break;
+        UNREACHABLE;
 
       case GL_NO_ERROR:
         glVersion = glMakeVersion(major, minor);

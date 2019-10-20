@@ -11,9 +11,13 @@ def build_assimp():
     '-DINJECT_DEBUG_POSTFIX=OFF'
   ], [
     'include/assimp'
-  ], [
-    'code/libassimp.a'
-  ])
+  ], {
+    'code/libassimp.a': 'libassimp.a',
+    'code/Debug/assimp-vc142-mt.lib': 'assimp.lib',
+    'code/Debug/assimp-vc142-mt.pdb': 'assimp.pdb',
+    'code/RelWithDebInfo/assimp-vc142-mt.lib': 'assimp.lib',
+    'code/RelWithDebInfo/assimp-vc142-mt.pdb': 'assimp.pdb'
+  })
 
 if __name__ == "__main__":
   build_assimp()

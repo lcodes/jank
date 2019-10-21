@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -48,21 +49,21 @@ def __copy(src, dst, out_dir, use_move):
     else:
       shutil.copyfile(src, dst)
 
-def __copy_all(build_dir, includes, libs, config_name):
+def __copy_all(build_dir, kwargs, config_name):
   inc_dir_full = os.path.join(inc_dir, config_name)
   lib_dir_full = os.path.join(lib_dir, config_name)
 
-  for inc in includes:
+  for inc in kwargs['includes']:
     src = os.path.join(build_dir, inc)
     dst = os.path.join(inc_dir_full, os.path.basename(inc))
     __copy(src, dst, inc_dir_full, False)
 
-  for lib in libs:
+  for lib in kwargs['libs']:
     src = os.path.join(build_dir, lib)
-    dst = os.path.join(lib_dir_full, libs[lib])
+    dst = os.path.join(lib_dir_full, kwargs['libs'][lib])
     __copy(src, dst, lib_dir_full, True)
 
-def __cmake(input_dir, build_dir, args):
+def __cmake(input_dir, build_dir, args, kwargs):
   subprocess.run(['cmake'] + args + [os.path.join(root_dir, input_dir)],
                  cwd=build_dir,
                  check=True)
@@ -72,38 +73,49 @@ def __cmake_devenv_build(build_dir, name, config):
                  cwd=build_dir,
                  check=True)
 
-def __cmake_devenv(input_dir, args, includes, libs):
+def __cmake_devenv(input_dir, args, kwargs):
   name      = os.path.basename(input_dir)
   build_dir = os.path.join(temp_dir, name)
 
   if not os.path.isdir(build_dir):
     os.makedirs(build_dir)
 
-  __cmake(input_dir, build_dir, args)
+  __cmake(input_dir, build_dir, args, kwargs)
+
+  for file_name in kwargs['vcxproj_files']:
+    vcxproj_file = os.path.join(build_dir, file_name)
+
+    with open(vcxproj_file, 'r') as f:
+      vcxproj = f.read()
+
+    vcxproj = re.sub('_DEBUG', '_ITERATOR_DEBUG_LEVEL=1;_DEBUG', vcxproj)
+
+    with open(vcxproj_file, 'w') as f:
+      f.write(vcxproj)
 
   __cmake_devenv_build(build_dir, name, 'Debug')
-  __copy_all(build_dir, includes, libs, 'debug')
+  __copy_all(build_dir, kwargs, 'debug')
 
   __cmake_devenv_build(build_dir, name, 'RelWithDebInfo')
-  __copy_all(build_dir, includes, libs, 'release')
+  __copy_all(build_dir, kwargs, 'release')
 
-def __cmake_make(input_dir, args, includes, libs, config_name, config):
+def __cmake_make(input_dir, args, kwargs, config_name, config):
   build_dir = os.path.join(temp_dir, os.path.basename(input_dir), config)
 
   if not os.path.isdir(build_dir):
     os.makedirs(build_dir)
 
-  __cmake(input_dir, build_dir, args + ['-DCMAKE_BUILD_TYPE=' + config])
+  __cmake(input_dir, build_dir, args + ['-DCMAKE_BUILD_TYPE=' + config], kwargs)
 
   subprocess.run(['make', '-j', str(multiprocessing.cpu_count())],
                  cwd=build_dir,
                  check=True)
 
-  __copy_all(build_dir, includes, libs, config_name)
+  __copy_all(build_dir, kwargs, config_name)
 
-def cmake(input_dir, args, includes, libs):
+def cmake(input_dir, args, **kwargs):
   if is_windows:
-    __cmake_devenv(input_dir, args, includes, libs)
+    __cmake_devenv(input_dir, args, kwargs)
   else:
-    __cmake_make(input_dir, args, includes, libs, 'debug',   'Debug')
-    __cmake_make(input_dir, args, includes, libs, 'release', 'RelWithDebInfo')
+    __cmake_make(input_dir, args, kwargs, 'debug',   'Debug')
+    __cmake_make(input_dir, args, kwargs, 'release', 'RelWithDebInfo')

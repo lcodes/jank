@@ -2,10 +2,10 @@
 
 #include "core/Core.hpp"
 
+#define GFX_PRESENT_THREAD 1 && !PLATFORM_HTML5
+
 #if PLATFORM_POSIX
 # include <pthread.h>
-
-#define GFX_PRESENT_THREAD 1 && !PLATFORM_HTML5
 
 class SyncEvent {
   pthread_mutex_t mutex;
@@ -38,7 +38,9 @@ public:
   }
 };
 #elif PLATFORM_WINDOWS
+# pragma warning(push, 0)
 # include <Windows.h>
+# pragma warning(pop)
 
 class SyncEvent {
   HANDLE handle;

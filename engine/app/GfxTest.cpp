@@ -75,6 +75,10 @@ char const* jank_imgui_getClipboardText(void*) { return ""; }
 void jank_imgui_setClipboardText(void*, char const*) {}
 #endif
 
+#if BUILD_EDITOR
+void testMeshImport();
+#endif
+
 
 // Dynamic Link Setup
 // -----------------------------------------------------------------------------
@@ -175,19 +179,20 @@ GL3_3_PROCS;
 // OpenGL Helpers
 // -----------------------------------------------------------------------------
 
-#define glCheck() glCheckImpl(__FILE__, __LINE__)
+#if BUILD_DEVELOPMENT
+# define glCheck() glCheckImpl(__FILE__, __LINE__)
 
 static void glCheckImpl(char const* file, u32 line) {
   if (auto e{ glGetError() }; UNLIKELY(e != GL_NO_ERROR)) {
     char const* str;
     switch (e) {
-#define E(x) case GL_##x: str = #x; break
+# define E(x) case GL_##x: str = #x; break
       E(INVALID_ENUM);
       E(INVALID_VALUE);
       E(INVALID_OPERATION);
       E(OUT_OF_MEMORY);
       E(INVALID_FRAMEBUFFER_OPERATION);
-#undef E
+# undef E
     default: ASSERT(0, "Unknown GL Error: %04x", e); UNREACHABLE;
     }
     assertFailure(file, line, str);
@@ -198,19 +203,19 @@ static void glCheckFramebuffer() {
   if (auto e{ glCheckFramebufferStatus(GL_FRAMEBUFFER) }; UNLIKELY(e != GL_FRAMEBUFFER_COMPLETE)) {
     char const* str;
     switch (e) {
-#define E(x) case GL_FRAMEBUFFER_##x: str = #x; break;
+# define E(x) case GL_FRAMEBUFFER_##x: str = #x; break;
       E(INCOMPLETE_ATTACHMENT);
       //E(INCOMPLETE_DIMENSIONS);
       E(INCOMPLETE_MISSING_ATTACHMENT);
       E(UNSUPPORTED);
     default: ASSERT(0, "Unknown GL Framebuffer Error: %04x", e); UNREACHABLE;
-#undef E
+# undef E
     }
     ASSERT(0, str);
   }
 }
 
-#define GL_CHECK_INFO_LOG(name, get, getInfoLog, status, action) \
+# define GL_CHECK_INFO_LOG(name, get, getInfoLog, status, action) \
   static void name(u32 object) { \
     i32 success; \
     get(object, status, &success); \
@@ -226,8 +231,13 @@ static void glCheckFramebuffer() {
   }
 GL_CHECK_INFO_LOG(glCheckShader,  glGetShaderiv,  glGetShaderInfoLog,  GL_COMPILE_STATUS, "compile shader")
 GL_CHECK_INFO_LOG(glCheckProgram, glGetProgramiv, glGetProgramInfoLog, GL_LINK_STATUS,    "link program")
-#undef GL_CHECK_INFO_LOG
-
+# undef GL_CHECK_INFO_LOG
+#else
+# define glCheck()
+# define glCheckFramebuffer()
+# define glCheckShader(shader)
+# define glCheckProgram(program)
+#endif
 
 // OpenGL Extension Setup
 // -----------------------------------------------------------------------------
@@ -1167,102 +1177,102 @@ static bool setupExtensionNV(std::string_view ext) {
 
 #if BUILD_DEVELOPMENT
 static void setupExtensionMissing(std::string_view ext) {
-# define IGNORE(name) else if ("GL_"#name##sv == ext) {}
+# define NONE(name) else if ("GL_"#name##sv == ext) {}
   if (false) {}
-  IGNORE(ARB_multitexture)             // 1.2
-  IGNORE(ARB_texture_border_clamp)     // 1.3
-  IGNORE(ARB_texture_compression)      // 1.3
-  IGNORE(ARB_texture_cube_map)         // 1.3
-  IGNORE(ARB_depth_texture)            // 1.4
-  IGNORE(ARB_point_parameters)         // 1.4
-  IGNORE(ARB_texture_mirrored_repeat)  // 1.4
-  IGNORE(ARB_occlusion_query)          // 1.5
-  IGNORE(ARB_vertex_buffer_object)     // 1.5
-  IGNORE(ARB_draw_buffers)             // 2.0
-  IGNORE(ARB_fragment_shader)          // 2.0
-  IGNORE(ARB_shader_objects)           // 2.0
-  IGNORE(ARB_shading_language_100)     // 2.0
-  IGNORE(ARB_texture_non_power_of_two) // 2.0
-  IGNORE(ARB_vertex_shader)            // 2.0
-  IGNORE(ARB_pixel_buffer_object)      // 2.1
-  IGNORE(EXT_copy_texture)             // 1.1
-  IGNORE(EXT_subtexture)               // 1.1
-  IGNORE(EXT_texture)                  // 1.1
-  IGNORE(EXT_texture_object)           // 1.1
-  IGNORE(EXT_vertex_array)             // 1.1
-  IGNORE(EXT_bgra)                     // 1.2
-  IGNORE(EXT_draw_range_elements)      // 1.2
-  IGNORE(EXT_packed_pixels)            // 1.2
-  IGNORE(EXT_texture3D)                // 1.2
-  IGNORE(EXT_texture_edge_clamp)       // 1.2
-  IGNORE(EXT_texture_cube_map)         // 1.3
-  IGNORE(EXT_blend_color)              // 1.3
-  IGNORE(EXT_blend_func_separate)      // 1.4
-  IGNORE(EXT_blend_minmax)             // 1.4
-  IGNORE(EXT_blend_subtract)           // 1.4
-  IGNORE(EXT_multi_draw_arrays)        // 1.4
-  IGNORE(EXT_point_parameters)         // 1.4
-  IGNORE(EXT_stencil_wrap)             // 1.4
-  IGNORE(EXT_texture_lod_bias)         // 1.4
-  IGNORE(EXT_blend_equation_separate)  // 2.0
-  IGNORE(EXT_pixel_buffer_object)      // 2.1
-  IGNORE(EXT_texture_sRGB)             // 2.1
-  IGNORE(APPLE_packed_pixels)          // 1.2
-  IGNORE(ATI_blend_equation_separate)  // 2.0
-  IGNORE(ATI_separate_stencil)         // 2.0
-  IGNORE(IBM_texture_mirrored_repeat)  // 1.4
-  IGNORE(INGR_blend_func_separate)     // 1.4
-  IGNORE(SGIS_texture_edge_clamp)      // 1.2
-  IGNORE(SGIS_texture_lod)             // 1.2
-  IGNORE(SGIS_texture_border_clamp)    // 1.3
-  IGNORE(SUN_multi_draw_arrays)        // 1.4
+  NONE(ARB_multitexture)             // 1.2
+  NONE(ARB_texture_border_clamp)     // 1.3
+  NONE(ARB_texture_compression)      // 1.3
+  NONE(ARB_texture_cube_map)         // 1.3
+  NONE(ARB_depth_texture)            // 1.4
+  NONE(ARB_point_parameters)         // 1.4
+  NONE(ARB_texture_mirrored_repeat)  // 1.4
+  NONE(ARB_occlusion_query)          // 1.5
+  NONE(ARB_vertex_buffer_object)     // 1.5
+  NONE(ARB_draw_buffers)             // 2.0
+  NONE(ARB_fragment_shader)          // 2.0
+  NONE(ARB_shader_objects)           // 2.0
+  NONE(ARB_shading_language_100)     // 2.0
+  NONE(ARB_texture_non_power_of_two) // 2.0
+  NONE(ARB_vertex_shader)            // 2.0
+  NONE(ARB_pixel_buffer_object)      // 2.1
+  NONE(EXT_copy_texture)             // 1.1
+  NONE(EXT_subtexture)               // 1.1
+  NONE(EXT_texture)                  // 1.1
+  NONE(EXT_texture_object)           // 1.1
+  NONE(EXT_vertex_array)             // 1.1
+  NONE(EXT_bgra)                     // 1.2
+  NONE(EXT_draw_range_elements)      // 1.2
+  NONE(EXT_packed_pixels)            // 1.2
+  NONE(EXT_texture3D)                // 1.2
+  NONE(EXT_texture_edge_clamp)       // 1.2
+  NONE(EXT_texture_cube_map)         // 1.3
+  NONE(EXT_blend_color)              // 1.3
+  NONE(EXT_blend_func_separate)      // 1.4
+  NONE(EXT_blend_minmax)             // 1.4
+  NONE(EXT_blend_subtract)           // 1.4
+  NONE(EXT_multi_draw_arrays)        // 1.4
+  NONE(EXT_point_parameters)         // 1.4
+  NONE(EXT_stencil_wrap)             // 1.4
+  NONE(EXT_texture_lod_bias)         // 1.4
+  NONE(EXT_blend_equation_separate)  // 2.0
+  NONE(EXT_pixel_buffer_object)      // 2.1
+  NONE(EXT_texture_sRGB)             // 2.1
+  NONE(APPLE_packed_pixels)          // 1.2
+  NONE(ATI_blend_equation_separate)  // 2.0
+  NONE(ATI_separate_stencil)         // 2.0
+  NONE(IBM_texture_mirrored_repeat)  // 1.4
+  NONE(INGR_blend_func_separate)     // 1.4
+  NONE(SGIS_texture_edge_clamp)      // 1.2
+  NONE(SGIS_texture_lod)             // 1.2
+  NONE(SGIS_texture_border_clamp)    // 1.3
+  NONE(SUN_multi_draw_arrays)        // 1.4
   // Deprecated / Misc. Ignored
-  IGNORE(ARB_fragment_program)
-  IGNORE(ARB_fragment_program_shadow)
-  IGNORE(ARB_point_sprite)
-  IGNORE(ARB_shadow)
-  IGNORE(ARB_texture_env_add)
-  IGNORE(ARB_texture_env_combine)
-  IGNORE(ARB_texture_env_crossbar)
-  IGNORE(ARB_texture_env_dot3)
-  IGNORE(ARB_transpose_matrix)
-  IGNORE(ARB_vertex_program)
-  IGNORE(EXT_compiled_vertex_array)
-  IGNORE(EXT_depth_bounds_test)
-  IGNORE(EXT_framebuffer_multisample_blit_scaled)
-  IGNORE(EXT_fog_coord)
-  IGNORE(EXT_gpu_program_parameters)
-  IGNORE(EXT_rescale_normal)
-  IGNORE(EXT_texture_env_add)
-  IGNORE(EXT_texture_env_combine)
-  IGNORE(EXT_texture_env_dot3)
-  IGNORE(EXT_texture_shadow_funcs)
-  IGNORE(EXT_secondary_color)
-  IGNORE(EXT_separate_specular_color)
-  IGNORE(EXT_shadow_funcs)
-  IGNORE(EXT_stencil_two_side)
-  IGNORE(APPLE_client_storage)
-  IGNORE(APPLE_container_object_shareable)
-  IGNORE(APPLE_flush_render)
-  IGNORE(APPLE_row_bytes)
-  IGNORE(APPLE_texture_range)
-  IGNORE(ATI_draw_buffers)
-  IGNORE(ATI_texture_env_combine3)
-  IGNORE(ATI_fragment_shader)
-  IGNORE(IBM_multimode_draw_arrays)
-  IGNORE(IBM_rasterpos_clip)
-  IGNORE(MESA_pack_invert)
-  IGNORE(NV_blend_square)
-  IGNORE(NV_fog_distance)
-  IGNORE(NV_light_max_exponent)
-  IGNORE(NV_texgen_reflection)
-  IGNORE(NV_texture_env_combine4)
-  IGNORE(NV_register_combiners)
-  IGNORE(NV_register_combiners2)
+  NONE(ARB_fragment_program)
+  NONE(ARB_fragment_program_shadow)
+  NONE(ARB_point_sprite)
+  NONE(ARB_shadow)
+  NONE(ARB_texture_env_add)
+  NONE(ARB_texture_env_combine)
+  NONE(ARB_texture_env_crossbar)
+  NONE(ARB_texture_env_dot3)
+  NONE(ARB_transpose_matrix)
+  NONE(ARB_vertex_program)
+  NONE(EXT_compiled_vertex_array)
+  NONE(EXT_depth_bounds_test)
+  NONE(EXT_framebuffer_multisample_blit_scaled)
+  NONE(EXT_fog_coord)
+  NONE(EXT_gpu_program_parameters)
+  NONE(EXT_rescale_normal)
+  NONE(EXT_texture_env_add)
+  NONE(EXT_texture_env_combine)
+  NONE(EXT_texture_env_dot3)
+  NONE(EXT_texture_shadow_funcs)
+  NONE(EXT_secondary_color)
+  NONE(EXT_separate_specular_color)
+  NONE(EXT_shadow_funcs)
+  NONE(EXT_stencil_two_side)
+  NONE(APPLE_client_storage)
+  NONE(APPLE_container_object_shareable)
+  NONE(APPLE_flush_render)
+  NONE(APPLE_row_bytes)
+  NONE(APPLE_texture_range)
+  NONE(ATI_draw_buffers)
+  NONE(ATI_texture_env_combine3)
+  NONE(ATI_fragment_shader)
+  NONE(IBM_multimode_draw_arrays)
+  NONE(IBM_rasterpos_clip)
+  NONE(MESA_pack_invert)
+  NONE(NV_blend_square)
+  NONE(NV_fog_distance)
+  NONE(NV_light_max_exponent)
+  NONE(NV_texgen_reflection)
+  NONE(NV_texture_env_combine4)
+  NONE(NV_register_combiners)
+  NONE(NV_register_combiners2)
   else {
     LOG(App, Warn, "Unknown GL Extension: %.*s", static_cast<u32>(ext.size()), ext.data());
   }
-# undef IGNORE
+# undef NONE
 }
 #else
 static void setupExtensionMissing(std::string_view ext) {}
@@ -1325,6 +1335,10 @@ void* renderMain(void* arg) {
 
   if (!hasInit) {
     hasInit = true;
+
+  #if BUILD_EDITOR
+    testMeshImport();
+  #endif
 
 #if PLATFORM_APPLE
     pthread_setname_np("Render");
@@ -1426,7 +1440,7 @@ void* renderMain(void* arg) {
     b2FixtureDef fixtureDef;
     fixtureDef.shape = &dynamicBox;
     fixtureDef.density = 1;
-    fixtureDef.friction = .3;
+    fixtureDef.friction = .3f;
     body->CreateFixture(&fixtureDef);
 
     IMGUI_CHECKVERSION();
@@ -1578,8 +1592,8 @@ void* renderMain(void* arg) {
     // ImGui init
     glGenTextures(1, &fontTexture);
     glBindTexture(GL_TEXTURE_2D, fontTexture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     {
       u8* pixels;
@@ -1606,9 +1620,9 @@ void* renderMain(void* arg) {
   while (true)
 #endif
   {
-    r += 0.001;
-    g += 0.0025;
-    b += 0.0005;
+    r += 0.001f;
+    g += 0.0025f;
+    b += 0.0005f;
     if (r > 1) r = 0;
     if (g > 1) g = 0;
     if (b > 1) b = 0;

@@ -58,4 +58,4 @@ sources = ["editor/**/*"]
 include_dirs = ["editor",
                 "external/assimp/include"]
 
-libs = ["assimp"]
+libs = ["assimp", "IrrXML", "zlib"]

@@ -50,4 +50,5 @@ public:
 // -----------------------------------------------------------------------------
 
 /// Helper macro to define complex macros able to be used within an if statement.
+/// NOTE: Doesn't work under MSVC if the macro uses ##__VA_ARGS__!
 #define SAFE_EXPR(x) do { x; } while (0)

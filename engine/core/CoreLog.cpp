@@ -131,7 +131,7 @@ void log(char const* file, u32 line,
 #  define SYNCHRONIZED()
 # else
 #  include <mutex>
-#  define SYNCHRONIZED() std::scoped_lock _{mutex}
+#  define SYNCHRONIZED() std::scoped_lock _{ mutex }
 
 static std::mutex mutex;
 # endif
@@ -161,7 +161,7 @@ static std::string_view prettyLevel(LogLevel level) {
 # define LEVEL  static_cast<u32>(pretty.size()), pretty.data()
 
 void log(char const* source, u32 sourceLen,
-         LogLevel level, char const* fmt, ...)
+         LogLevel level, PRINTF_STR char const* fmt, ...)
 {
   auto stream{ getStream(level) };
   auto pretty{ prettyLevel(level) };
@@ -176,7 +176,7 @@ void log(char const* source, u32 sourceLen,
 # if BUILD_DEVELOPMENT
 void log(char const* file, u32 line,
          char const* source, u32 sourceLen,
-         LogLevel level, char const* fmt, ...)
+         LogLevel level, PRINTF_STR char const* fmt, ...)
 {
   auto stream{ getStream(level) };
   auto pretty{ prettyLevel(level) };

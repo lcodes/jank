@@ -12,10 +12,9 @@
 # define PROJECT_NAME "Jank"
 #endif
 
-// TODO: whats the best way to detect this?
 /// Minimal optimizations with full runtime assertions.
 #ifndef BUILD_DEBUG
-# if defined(_DEBUG) || !defined(NDEBUG)
+# if defined(_DEBUG)
 #  define BUILD_DEBUG 1
 # else
 #  define BUILD_DEBUG 0
@@ -37,6 +36,11 @@
 # define BUILD_PROFILE 0
 #endif
 
+// Debug implies Development
+#if BUILD_DEBUG && !BUILD_DEVELOPMENT
+# error "BUILD_DEBUG is true but BUILD_DEVELOPMENT is false"
+#endif
+
 
 // Compiler
 // -----------------------------------------------------------------------------
@@ -55,8 +59,6 @@
 #else
 # error "Unsupported compiler"
 #endif
-
-#define COMPILER_GNU_COMPATIBLE (COMPILER_CLANG || COMPILER_INTEL || COMPILER_GCC)
 
 #ifndef COMPILER_CLANG
 # define COMPILER_CLANG 0
@@ -77,6 +79,8 @@
 #ifndef COMPILER_EMSCRIPTEN
 # define COMPILER_EMSCRIPTEN 0
 #endif
+
+#define COMPILER_GNU_COMPATIBLE (COMPILER_CLANG || COMPILER_INTEL || COMPILER_GCC)
 
 #if COMPILER_MSVC && defined(_MSVC_LANG)
 # define LANGUAGE_VERSION _MSVC_LANG
@@ -265,9 +269,9 @@
 #endif
 
 #if COMPILER_GNU_COMPATIBLE
-# define PRINTF_FORMAT(fmt, arg) __attribute((format(printf, fmt, arg)))
+# define PRINTF_FMT(fmt, arg) __attribute((format(printf, fmt, arg)))
 #else
-# define PRINTF_FORMAT(fmt, arg)
+# define PRINTF_FMT(fmt, arg)
 #endif
 
 #if COMPILER_MSVC

@@ -11,11 +11,13 @@ DECL_LOG_SOURCE(Debug, Warn);
 #endif
 
 /// Enhanced version of the C assert macro.
-#if BUILD_DEBUG || BUILD_DEVELOPMENT
+#if BUILD_DEVELOPMENT
 # define ASSERT(test, ...) \
-  SAFE_EXPR(if UNLIKELY(!(test)) { \
-    assertFailure(__FILE__, __LINE__, ##__VA_ARGS__); \
-  })
+  do { \
+    if UNLIKELY(!(test)) { \
+      assertFailure(__FILE__, __LINE__, ##__VA_ARGS__); \
+    } \
+  } while (0)
 #else
 # define ASSERT(test, ...) static_cast<void>(0)
 #endif
@@ -28,10 +30,10 @@ DECL_LOG_SOURCE(Debug, Warn);
 #endif
 
 /// Writes the formatted assertion message and aborts.
+#if BUILD_DEVELOPMENT
 void assertFailure(char const* file, u32 line);
-
-#if BUILD_DEBUG
-void assertFailure(char const* file, u32 line, char const* fmt, ...);
+void assertFailure(char const* file, u32 line, PRINTF_STR char const* fmt, ...)
+  PRINTF_FMT(3, 4);
 #endif
 
 /// Break into the debugger

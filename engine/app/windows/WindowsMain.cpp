@@ -2,9 +2,11 @@
 
 #include "app/GfxTest.hpp"
 
+#pragma warning(push, 0)
 #include <Windows.h>
 #include <GL/GL.h>
 #include <GL/wglext.h>
+#pragma warning(pop)
 
 #include <process.h>
 
@@ -91,14 +93,10 @@ static void redirect(DWORD stdHandle, char const* mode, FILE* fp) {
 extern void foo(int a, int b, ...);
 #define FOO(a, b, ...) foo(a, b, ##__VA_ARGS__)
 
-#if 1
 int WINAPI wWinMain(_In_     HINSTANCE instance,
                     _In_opt_ HINSTANCE prevInstance,
                     _In_     PWSTR cmdLine,
                     _In_     int cmdShow)
-#else
-int main()
-#endif
 {
   // Parse args
 #if 0
@@ -239,3 +237,8 @@ int main()
 
   return 0;
 }
+
+int main() {
+  return wWinMain(nullptr, nullptr, nullptr, 0);
+}
+

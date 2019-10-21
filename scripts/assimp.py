@@ -12,19 +12,15 @@ def build_assimp():
   ], includes=[
     'include/assimp'
   ], libs={
-    'code/libassimp.a': 'libassimp.a',
-    'code/Debug/assimp-vc142-mt.lib': 'assimp.lib',
-    'code/Debug/assimp-vc142-mt.pdb': 'assimp.pdb',
-    'contrib/irrXML/Debug/IrrXML.lib': 'IrrXML.lib',
-    'contrib/irrXML/Debug/IrrXML.pdb': 'IrrXML.pdb',
-    'contrib/zlib/Debug/zlibstaticd.lib': 'zlib.lib',
-    'contrib/zlib/Debug/zlibd.pdb': 'zlib.pdb',
-    'code/RelWithDebInfo/assimp-vc142-mt.lib': 'assimp.lib',
-    'code/RelWithDebInfo/assimp-vc142-mt.pdb': 'assimp.pdb',
-    'contrib/irrXML/RelWithDebInfo/IrrXML.lib': 'IrrXML.lib',
-    'contrib/irrXML/RelWithDebInfo/IrrXML.pdb': 'IrrXML.pdb',
-    'contrib/zlib/RelWithDebInfo/zlibstatic.lib': 'zlib.lib',
-    'contrib/zlib/RelWithDebInfo/zlib.pdb': 'zlib.pdb'
+    'code/libassimp.a':                           'libassimp.a',
+    'code/Debug/assimp-vc142-mt.lib':             'assimp.lib',
+    'code/Debug/assimp-vc142-mt.pdb':             'assimp-vc142-mt.pdb',
+    'code/RelWithDebInfo/assimp-vc142-mt.lib':    'assimp.lib',
+    'code/RelWithDebInfo/assimp-vc142-mt.pdb':    'assimp-vc142-mt.pdb',
+    'contrib/irrXML/Debug/IrrXML.lib':            'IrrXML.lib',
+    'contrib/irrXML/RelWithDebInfo/IrrXML.lib':   'IrrXML.lib',
+    'contrib/zlib/Debug/zlibstaticd.lib':         'zlib.lib',
+    'contrib/zlib/RelWithDebInfo/zlibstatic.lib': 'zlib.lib'
   }, vcxproj_files=[
     'code/assimp.vcxproj',
     'contrib/irrXML/IrrXML.vcxproj'

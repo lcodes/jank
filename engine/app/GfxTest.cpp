@@ -46,6 +46,7 @@ constexpr u16 glMakeVersion(i32 major, i32 minor) {
   return static_cast<u16>((major << 8) | minor);
 }
 
+constexpr u16 GL2_0 = glMakeVersion(2, 0);
 constexpr u16 GL2_1 = glMakeVersion(2, 1);
 constexpr u16 GL3_0 = glMakeVersion(3, 0);
 constexpr u16 GL3_1 = glMakeVersion(3, 1);
@@ -58,6 +59,9 @@ constexpr u16 GL4_3 = glMakeVersion(4, 3);
 constexpr u16 GL4_4 = glMakeVersion(4, 4);
 constexpr u16 GL4_5 = glMakeVersion(4, 5);
 constexpr u16 GL4_6 = glMakeVersion(4, 6);
+
+constexpr u16 GLES2_0 = glMakeVersion(2, 0);
+constexpr u16 GLES3_0 = glMakeVersion(3, 0);
 
 void jank_imgui_init();
 void jank_imgui_newFrame();
@@ -239,388 +243,432 @@ GL_CHECK_INFO_LOG(glCheckProgram, glGetProgramiv, glGetProgramInfoLog, GL_LINK_S
 # define glCheckProgram(program)
 #endif
 
+static bool isGLES;
+static char const* glslHeader;
+static std::string glslExtensions;
+
+class ShaderBuilder {
+  char const* sources[4];
+  u32 numSources;
+
+public:
+  ShaderBuilder() : numSources(0) {
+    push(glslHeader);
+    push(glslExtensions.c_str());
+
+    if (isGLES) {
+      push("precision mediump float;\n");
+    }
+  }
+
+  void push(char const* source) {
+    ASSERT(numSources < 4);
+    sources[numSources++] = source;
+  }
+
+  u32 compile(u32 stage) {
+#if BUILD_DEBUG
+    for (auto n{0}; n < numSources; n++) {
+      printf("%s", sources[n]);
+    }
+#endif
+    auto shader{ glCreateShader(stage) };
+    glShaderSource(shader, numSources, sources, nullptr);
+    glCompileShader(shader);
+    glCheckShader(shader);
+    return shader;
+  }
+};
+
+u32 glBuildShader(u32 stage, char const* source) {
+  ShaderBuilder b;
+  b.push(source);
+  return b.compile(stage);
+}
+
+
 // OpenGL Extension Setup
 // -----------------------------------------------------------------------------
 
 static struct {
-  usize ARB_ES2_compatibility:                1;
-  usize ARB_ES3_compatibility:                1;
-  usize ARB_ES3_1_compatibility:                1;
-  usize ARB_ES3_2_compatibility:                1;
-  usize ARB_arrays_of_arrays: 1;
-  usize ARB_base_instance : 1;
-  usize ARB_bindless_texture : 1;
-  usize ARB_blend_func_extended : 1;
-  usize ARB_buffer_storage : 1;
-  usize ARB_clear_buffer_object:              1;
-  usize ARB_clear_texture : 1;
-  usize ARB_clip_control : 1;
-  usize ARB_color_buffer_float:               1;
-  usize ARB_compressed_texture_pixel_storage: 1;
-  usize ARB_compute_shader : 1;
-  usize ARB_compute_variable_group_size : 1;
-  usize ARB_conditional_render_inverted : 1;
-  usize ARB_conservative_depth : 1;
-  usize ARB_copy_buffer:                      1;
-  usize ARB_copy_image : 1;
-  usize ARB_cull_distance : 1;
-  usize ARB_debug_output:                     1;
-  usize ARB_depth_buffer_float: 1;
-  usize ARB_depth_clamp: 1;
-  usize ARB_depth_texture:                    1;
-  usize ARB_derivative_control: 1;
-  usize ARB_direct_state_access: 1;
-  usize ARB_draw_buffers_blend: 1;
-  usize ARB_draw_elements_base_vertex:        1;
-  usize ARB_draw_indirect:1;
-  usize ARB_draw_instanced: 1;
-  usize ARB_enhanced_layouts: 1;
-  usize ARB_explicit_attrib_location:         1;
-  usize ARB_explicit_uniform_location:        1;
-  usize ARB_fragment_coord_conventions:       1;
-  usize ARB_fragment_layer_viewport: 1;
-  usize ARB_fragment_shader_interlock: 1;
-  usize ARB_framebuffer_no_attachments : 1;
-  usize ARB_framebuffer_object:               1;
-  usize ARB_framebuffer_sRGB:                 1;
-  usize ARB_geometry_shader4 : 1;
-  usize ARB_get_program_binary:               1;
-  usize ARB_get_texture_sub_image:            1;
-  usize ARB_gl_spirv : 1;
-  usize ARB_gpu_shader5 : 1;
-  usize ARB_gpu_shader_fp64 : 1;
-  usize ARB_gpu_shader_int64 : 1;
-  usize ARB_half_float_pixel:                 1;
-  usize ARB_half_float_vertex:                1;
-  usize ARB_imaging: 1;
-  usize ARB_indirect_parameters: 1;
-  usize ARB_instanced_arrays : 1;
-  usize ARB_internalformat_query:             1;
-  usize ARB_internalformat_query2:            1;
-  usize ARB_invalidate_subdata:               1;
-  usize ARB_map_buffer_alignment:             1;
-  usize ARB_map_buffer_range:                 1;
-  usize ARB_multi_bind:                       1;
-  usize ARB_multi_draw_indirect: 1;
-  usize ARB_multisample:                      1;
-  usize ARB_occlusion_query2:                 1;
-  usize ARB_parallel_shader_compile : 1;
-  usize ARB_pipeline_statistics_query: 1;
-  usize ARB_polygon_offset_clamp: 1;
-  usize ARB_post_depth_coverage:1;
-  usize ARB_program_interface_query:          1;
-  usize ARB_provoking_vertex:                 1;
-  usize ARB_query_buffer_object : 1;
-  usize ARB_robust_buffer_access_behavior: 1;
-  usize ARB_robustness:                       1;
-  usize ARB_sample_locations: 1;
-  usize ARB_sample_shading:1;
-  usize ARB_sampler_objects:                  1;
-  usize ARB_seamless_cube_map: 1;
-  usize ARB_seamless_cubemap_per_texture: 1;
-  usize ARB_separate_shader_objects:          1;
-  usize ARB_shader_atomic_counters : 1;
-  usize ARB_shader_atomic_counter_ops : 1;
-  usize ARB_shader_ballot:1;
-  usize ARB_shader_bit_encoding:1;
-  usize ARB_shader_clock: 1;
-  usize ARB_shader_draw_parameters : 1;
-  usize ARB_shader_group_vote: 1;
-  usize ARB_shader_image_load_store: 1;
-  usize ARB_shader_image_size: 1;
-  usize ARB_shader_precision : 1;
-  usize ARB_shader_storage_buffer_object : 1;
-  usize ARB_shader_subroutine : 1;
-  usize ARB_shader_texture_lod:               1;
-  usize ARB_shader_texture_image_samples : 1;
-  usize ARB_shader_viewport_layer_array : 1;
-  usize ARB_shading_language_420pack : 1;
-  usize ARB_shading_language_include : 1;
-  usize ARB_shading_language_packing : 1;
-  usize ARB_sparse_buffer : 1;
-  usize ARB_sparse_texture : 1;
-  usize ARB_sparse_texture2 : 1;
-  usize ARB_sparse_texture_clamp : 1;
-  usize ARB_spirv_extensions : 1;
-  usize ARB_stencil_texturing: 1;
-  usize ARB_sync:                             1;
-  usize ARB_tessellation_shader : 1;
-  usize ARB_texture_barrier : 1;
-  usize ARB_texture_buffer_object : 1;
-  usize ARB_texture_buffer_object_rgb32 : 1;
-  usize ARB_texture_buffer_range : 1;
-  usize ARB_texture_compression_bptc : 1;
-  usize ARB_texture_compression_rgtc : 1;
-  usize ARB_texture_cube_map_array : 1;
-  usize ARB_texture_filter_anisotropic:       1;
-  usize ARB_texture_filter_minmax: 1;
-  usize ARB_texture_float:                    1;
-  usize ARB_texture_gather:1;
-  usize ARB_texture_mirror_clamp_to_edge: 1;
-  usize ARB_texture_multisample: 1;
-  usize ARB_texture_query_levels: 1;
-  usize ARB_texture_query_lod;
-  usize ARB_texture_rectangle:                1;
-  usize ARB_texture_rg: 1;
-  usize ARB_texture_rgb10_a2ui:1;
-  usize ARB_texture_stencil8:1;
-  usize ARB_texture_storage:                  1;
-  usize ARB_texture_storage_multisample: 1;
-  usize ARB_texture_swizzle:                  1;
-  usize ARB_texture_view : 1;
-  usize ARB_timer_query : 1;
-  usize ARB_transform_feedback2 : 1;
-  usize ARB_transform_feedback3 : 1;
-  usize ARB_transform_feedback_instanced : 1;
-  usize ARB_transform_feedback_overflow_query : 1;
-  usize ARB_uniform_buffer_object : 1;
-  usize ARB_vertex_array_bgra:                1;
-  usize ARB_vertex_array_object:              1;
-  usize ARB_vertex_attrib_64bit : 1;
-  usize ARB_vertex_attrib_binding:            1;
-  usize ARB_vertex_type_10f_11f_11f_rev : 1;
-  usize ARB_vertex_type_2_10_10_10_rev : 1;
-  usize ARB_viewport_array : 1;
-  usize ARB_window_pos:                       1;
-  usize EXT_Cg_shader: 1;
-  usize EXT_EGL_image_array: 1;
-  usize EXT_EGL_image_external_wrap_modes: 1;
-  usize EXT_EGL_image_storage: 1;
-  usize EXT_YUV_target: 1;
-  usize EXT_abgr:                             1;
-  usize EXT_bindable_uniform: 1;
-  usize EXT_blend_func_extended: 1;
-  usize EXT_blit_framebuffer_params: 1;
-  usize EXT_buffer_storage: 1;
-  usize EXT_clip_control: 1;
-  usize EXT_clip_cull_distance: 1;
-  usize EXT_color_buffer_float: 1;
-  usize EXT_color_buffer_half_float: 1;
-  usize EXT_copy_image: 1;
-  usize EXT_debug_label:1;
-  usize EXT_debug_marker:1;
-  usize EXT_direct_state_access: 1;
-  usize EXT_discard_framebuffer: 1;
-  usize EXT_disjoint_timer_query: 1;
-  usize EXT_draw_buffers2: 1;
-  usize EXT_draw_buffers_indexed: 1;
-  usize EXT_draw_instanced: 1;
-  usize EXT_external_buffer: 1;
-  usize EXT_fragment_invocation_density: 1;
-  usize EXT_framebuffer_blit:                 1;
-  usize EXT_framebuffer_multisample: 1;
-  usize EXT_framebuffer_object:               1;
-  usize EXT_framebuffer_sRGB:                 1;
-  usize EXT_geometry_shader: 1;
-  usize EXT_geometry_shader4: 1;
-  usize EXT_gpu_shader4: 1;
-  usize EXT_gpu_shader5: 1;
-  usize EXT_import_sync_object: 1;
-  usize EXT_memory_object: 1;
-  usize EXT_memory_object_fd: 1;
-  usize EXT_multisampled_render_to_texture: 1;
-  usize EXT_multisampled_render_to_texture2: 1;
-  usize EXT_packed_depth_stencil:             1;
-  usize EXT_packed_float: 1;
-  usize EXT_polygon_offset_clamp: 1;
-  usize EXT_post_depth_coverage: 1;
-  usize EXT_primitive_bounding_box: 1;
-  usize EXT_protected_textures: 1;
-  usize EXT_provoking_vertex:                 1;
-  usize EXT_pvrtc_sRGB: 1;
-  usize EXT_raster_multisample: 1;
-  usize EXT_read_format_bgra: 1;
-  usize EXT_robustness: 1;
-  usize EXT_sRGB: 1;
-  usize EXT_sRGB_write_control: 1;
-  usize EXT_semaphore : 1;
-  usize EXT_separate_shader_objects: 1;
-  usize EXT_shader_framebuffer_fetch: 1;
-  usize EXT_shader_image_load_formatted: 1;
-  usize EXT_shader_image_load_store: 1;
-  usize EXT_shader_integer_mix: 1;
-  usize EXT_shader_io_blocks: 1;
-  usize EXT_shader_non_constant_global_initializers: 1;
-  usize EXT_shader_texture_lod: 1;
-  usize EXT_shadow_samplers: 1;
-  usize EXT_sparse_texture2: 1;
-  usize EXT_tessellation_shader: 1;
-  usize EXT_texture_array: 1;
-  usize EXT_texture_border_clamp: 1;
-  usize EXT_texture_buffer: 1;
-  usize EXT_texture_buffer_object: 1;
-  usize EXT_texture_compression_dxt1:         1;
-  usize EXT_texture_compression_latc: 1;
-  usize EXT_texture_compression_rgtc: 1;
-  usize EXT_texture_compression_s3tc:         1;
-  usize EXT_texture_cube_map_array: 1;
-  usize EXT_texture_filter_anisotropic:       1;
-  usize EXT_texture_filter_minmax: 1;
-  usize EXT_texture_format_BGRA8888: 1;
-  usize EXT_texture_format_sRGB_override: 1;
-  usize EXT_texture_integer: 1;
-  usize EXT_texture_lod: 1;
-  usize EXT_texture_mirror_clamp:1;
-  usize EXT_texture_norm16: 1;
-  usize EXT_texture_rectangle:                1;
-  usize EXT_texture_sRGB_decode:              1;
-  usize EXT_texture_sRGB_R8: 1;
-  usize EXT_texture_shared_exponent: 1;
-  usize EXT_texture_storage: 1;
-  usize EXT_texture_swizzle:                  1;
-  usize EXT_texture_type_2_10_10_10_REV: 1;
-  usize EXT_timer_query: 1;
-  usize EXT_transform_feedback2: 1;
-  usize EXT_vertex_array_bgra:                1;
-  usize EXT_vertex_attrib_64bit: 1;
-  usize EXT_window_rectangles: 1;
-  usize EXTX_framebuffer_mixed_formats: 1;
-  usize KHR_blend_equation_advanced: 1;
-  usize KHR_blend_equation_advanced_coherent: 1;
-  usize KHR_debug:                            1;
-  usize KHR_context_flush_control:            1;
-  usize KHR_no_error:                         1;
-  usize KHR_parallel_shader_compile : 1;
-  usize KHR_robust_buffer_access_behavior: 1;
-  usize KHR_robustness: 1;
-  usize KHR_texture_compression_astc_ldr: 1;
-  usize KHR_texture_compression_astc_hdr: 1;
-  usize KTX_buffer_region : 1;
-  usize OES_EGL_image:                        1;
-  usize OES_EGL_image_external: 1;
-  usize OES_EGL_image_external_essl3: 1;
-  usize OES_EGL_sync: 1;
-  usize OES_compressed_ETC1_RGB8_texture: 1;
-  usize OES_depth24: 1;
-  usize OES_depth_texture: 1;
-  usize OES_depth_texture_cube_map: 1;
-  usize OES_element_index_uint: 1;
-  usize OES_framebuffer_object: 1;
-  usize OES_get_program_binary: 1;
-  usize OES_packed_depth_stencil: 1;
-  usize OES_read_format:                      1;
-  usize OES_rgb8_rgba8: 1;
-  usize OES_shader_image_atomic: 1;
-  usize OES_sample_shading: 1;
-  usize OES_sample_variables: 1;
-  usize OES_shader_multisample_interpolation: 1;
-  usize OES_surfaceless_context: 1;
-  usize OES_standard_derivatives: 1;
-  usize OES_texture_3D: 1;
-  usize OES_texture_compression_astc: 1;
-  usize OES_texture_float: 1;
-  usize OES_texture_float_linear: 1;
-  usize OES_texture_format_sRGB_override: 1;
-  usize OES_texture_half_float: 1;
-  usize OES_texture_half_float_linear: 1;
-  usize OES_texture_npot: 1;
-  usize OES_texture_stencil8: 1;
-  usize OES_texture_storage_multisample_2d_array: 1;
-  usize OES_texture_type_2_10_10_10_REV: 1;
-  usize OES_texture_view: 1;
-  usize OES_vertex_array_object: 1;
-  usize OES_vertex_half_float: 1;
-  usize AMD_compressed_ATC_texture: 1;
-  usize AMD_multi_draw_indirect: 1;
-  usize AMD_seamless_cubemap_per_texture: 1;
-  usize AMD_shader_trinary_minmax:            1;
-  usize AMD_vertex_shader_viewport_index: 1;
-  usize AMD_vertex_shader_layer: 1;
-  usize ANDROID_extension_pack_es31a: 1;
-  usize ANGLE_texture_compression_dxt3:       1;
-  usize ANGLE_texture_compression_dxt5:       1;
-  usize APPLE_clip_distance: 1;
-  usize APPLE_color_buffer_packed_float: 1;
-  usize APPLE_copy_texture_levels: 1;
-  usize APPLE_rgb_422:1;
-  usize APPLE_texture_format_BGRA8888: 1;
-  usize ARM_shader_framebuffer_fetch_depth_stencil: 1;
-  usize ATI_texture_float:                    1;
-  usize ATI_texture_mirror_once:1;
-  usize IMG_read_format: 1;
-  usize IMG_texture_compression_pvrtc: 1;
-  usize MESA_window_pos:                      1;
-  usize NV_ES1_1_compatibility : 1;
-  usize NV_ES3_1_compatibility : 1;
-  usize NV_bindless_multi_draw_indirect : 1;
-  usize NV_bindless_multi_draw_indirect_count : 1;
-  usize NV_bindless_texture: 1;
-  usize NV_blend_equation_advanced: 1;
-  usize NV_blend_equation_advanced_coherent : 1;
-  usize NV_compute_program5 : 1;
-  usize NV_compute_shader_derivatives : 1;
-  usize NV_conditional_render : 1;
-  usize NV_conservative_raster : 1;
-  usize NV_conservative_raster_dilate : 1;
-  usize NV_conservative_raster_pre_snap : 1;
-  usize NV_conservative_raster_pre_snap_triangles : 1;
-  usize NV_conservative_raster_underestimation : 1;
-  usize NV_draw_texture : 1;
-  usize NV_draw_vulkan_image : 1;
-  usize NV_feature_query : 1;
-  usize NV_fence : 1;
-  usize NV_geometry_shader4 : 1;
-  usize NV_geometry_shader_passthrough : 1;
-  usize NV_gpu_program4 : 1;
-  usize NV_gpu_program4_1 : 1;
-  usize NV_gpu_program5 : 1;
-  usize NV_gpu_program5_mem_extended : 1;
-  usize NV_gpu_program_fp64 : 1;
-  usize NV_gpu_shader5 : 1;
-  usize NV_half_float : 1;
-  usize NV_memory_attachment : 1;
-  usize NV_mesh_shader : 1;
-  usize NV_packed_depth_stencil:              1;
-  usize NV_parameter_buffer_object : 1;
-  usize NV_parameter_buffer_object2 : 1;
-  usize NV_path_rendering : 1;
-  usize NV_path_rendering_shared_edge : 1;
-  usize NV_primitive_restart:                 1;
-  usize NV_shader_atomic_counters : 1;
-  usize NV_shader_atomic_float : 1;
-  usize NV_shader_atomic_float64 : 1;
-  usize NV_shader_atomic_fp16_vector : 1;
-  usize NV_shader_atomic_int64 : 1;
-  usize NV_shader_buffer_load : 1;
-  usize NV_shader_noperspective_interpolation: 1;
-  usize NV_shader_storage_buffer_object : 1;
-  usize NV_shader_texture_footprint : 1;
-  usize NV_shader_thread_group : 1;
-  usize NV_shader_thread_shuffle : 1;
-  usize NV_stereo_view_rendering : 1;
-  usize NV_texture_barrier : 1;
-  usize NV_texture_compression_vtc : 1;
-  usize NV_texture_rectangle:                 1;
-  usize NV_texture_shader : 1;
-  usize NV_texture_shader2 : 1;
-  usize NV_texture_shader3 : 1;
-  usize NV_transform_feedback : 1;
-  usize NV_transform_feedback2 : 1;
-  usize NV_uniform_buffer_unified_memory : 1;
-  usize NV_vertex_array_range : 1;
-  usize NV_vertex_array_range2 : 1;
-  usize NV_vertex_attrib_64bit : 1;
-  usize NV_vertex_buffer_unified_memory : 1;
-  usize NVX_blend_equation_advanced_multi_draw_buffers : 1;
-  usize NVX_conditional_render : 1;
-  usize NVX_gpu_memory_info : 1;
-  usize NVX_multigpu_info : 1;
-  usize NVX_nvenc_interop : 1;
-  usize OVR_multiview : 1;
-  usize OVR_multiview2 : 1;
-  usize OVR_multiview_multisampled_render_to_texture: 1;
-  usize QCOM_alpha_test: 1;
-  usize QCOM_texture_foveated: 1;
-  usize QCOM_tiled_rendering: 1;
-  usize QCOM_shader_framebuffer_fetch_noncoherent: 1;
-  usize QCOM_shader_framebuffer_fetch_rate: 1;
-  usize S3_s3tc:                              1;
-  usize SGIS_generate_mipmap:                 1;
+  usize ARB_ES2_compatibility:                          1;
+  usize ARB_ES3_compatibility:                          1;
+  usize ARB_ES3_1_compatibility:                        1;
+  usize ARB_ES3_2_compatibility:                        1;
+  usize ARB_arrays_of_arrays:                           1;
+  usize ARB_base_instance:                              1;
+  usize ARB_bindless_texture:                           1;
+  usize ARB_blend_func_extended:                        1;
+  usize ARB_buffer_storage:                             1;
+  usize ARB_clear_buffer_object:                        1;
+  usize ARB_clear_texture:                              1;
+  usize ARB_clip_control:                               1;
+  usize ARB_color_buffer_float:                         1;
+  usize ARB_compressed_texture_pixel_storage:           1;
+  usize ARB_compute_shader:                             1;
+  usize ARB_compute_variable_group_size:                1;
+  usize ARB_conditional_render_inverted:                1;
+  usize ARB_conservative_depth:                         1;
+  usize ARB_copy_buffer:                                1;
+  usize ARB_copy_image:                                 1;
+  usize ARB_cull_distance:                              1;
+  usize ARB_debug_output:                               1;
+  usize ARB_depth_buffer_float:                         1;
+  usize ARB_depth_clamp:                                1;
+  usize ARB_depth_texture:                              1;
+  usize ARB_derivative_control:                         1;
+  usize ARB_direct_state_access:                        1;
+  usize ARB_draw_buffers_blend:                         1;
+  usize ARB_draw_elements_base_vertex:                  1;
+  usize ARB_draw_indirect:                              1;
+  usize ARB_draw_instanced:                             1;
+  usize ARB_enhanced_layouts:                           1;
+  usize ARB_explicit_attrib_location:                   1;
+  usize ARB_explicit_uniform_location:                  1;
+  usize ARB_fragment_coord_conventions:                 1;
+  usize ARB_fragment_layer_viewport:                    1;
+  usize ARB_fragment_shader_interlock:                  1;
+  usize ARB_framebuffer_no_attachments:                 1;
+  usize ARB_framebuffer_object:                         1;
+  usize ARB_framebuffer_sRGB:                           1;
+  usize ARB_geometry_shader4:                           1;
+  usize ARB_get_program_binary:                         1;
+  usize ARB_get_texture_sub_image:                      1;
+  usize ARB_gl_spirv:                                   1;
+  usize ARB_gpu_shader5:                                1;
+  usize ARB_gpu_shader_fp64:                            1;
+  usize ARB_gpu_shader_int64:                           1;
+  usize ARB_half_float_pixel:                           1;
+  usize ARB_half_float_vertex:                          1;
+  usize ARB_imaging:                                    1;
+  usize ARB_indirect_parameters:                        1;
+  usize ARB_instanced_arrays:                           1;
+  usize ARB_internalformat_query:                       1;
+  usize ARB_internalformat_query2:                      1;
+  usize ARB_invalidate_subdata:                         1;
+  usize ARB_map_buffer_alignment:                       1;
+  usize ARB_map_buffer_range:                           1;
+  usize ARB_multi_bind:                                 1;
+  usize ARB_multi_draw_indirect:                        1;
+  usize ARB_multisample:                                1;
+  usize ARB_occlusion_query2:                           1;
+  usize ARB_parallel_shader_compile:                    1;
+  usize ARB_pipeline_statistics_query:                  1;
+  usize ARB_polygon_offset_clamp:                       1;
+  usize ARB_post_depth_coverage:                        1;
+  usize ARB_program_interface_query:                    1;
+  usize ARB_provoking_vertex:                           1;
+  usize ARB_query_buffer_object:                        1;
+  usize ARB_robust_buffer_access_behavior:              1;
+  usize ARB_robustness:                                 1;
+  usize ARB_sample_locations:                           1;
+  usize ARB_sample_shading:                             1;
+  usize ARB_sampler_objects:                            1;
+  usize ARB_seamless_cube_map:                          1;
+  usize ARB_seamless_cubemap_per_texture:               1;
+  usize ARB_separate_shader_objects:                    1;
+  usize ARB_shader_atomic_counters:                     1;
+  usize ARB_shader_atomic_counter_ops:                  1;
+  usize ARB_shader_ballot:                              1;
+  usize ARB_shader_bit_encoding:                        1;
+  usize ARB_shader_clock:                               1;
+  usize ARB_shader_draw_parameters:                     1;
+  usize ARB_shader_group_vote:                          1;
+  usize ARB_shader_image_load_store:                    1;
+  usize ARB_shader_image_size:                          1;
+  usize ARB_shader_precision:                           1;
+  usize ARB_shader_storage_buffer_object:               1;
+  usize ARB_shader_subroutine:                          1;
+  usize ARB_shader_texture_lod:                         1;
+  usize ARB_shader_texture_image_samples:               1;
+  usize ARB_shader_viewport_layer_array:                1;
+  usize ARB_shading_language_420pack:                   1;
+  usize ARB_shading_language_include:                   1;
+  usize ARB_shading_language_packing:                   1;
+  usize ARB_sparse_buffer:                              1;
+  usize ARB_sparse_texture:                             1;
+  usize ARB_sparse_texture2:                            1;
+  usize ARB_sparse_texture_clamp:                       1;
+  usize ARB_spirv_extensions:                           1;
+  usize ARB_stencil_texturing:                          1;
+  usize ARB_sync:                                       1;
+  usize ARB_tessellation_shader:                        1;
+  usize ARB_texture_barrier:                            1;
+  usize ARB_texture_buffer_object:                      1;
+  usize ARB_texture_buffer_object_rgb32:                1;
+  usize ARB_texture_buffer_range:                       1;
+  usize ARB_texture_compression_bptc:                   1;
+  usize ARB_texture_compression_rgtc:                   1;
+  usize ARB_texture_cube_map_array:                     1;
+  usize ARB_texture_filter_anisotropic:                 1;
+  usize ARB_texture_filter_minmax:                      1;
+  usize ARB_texture_float:                              1;
+  usize ARB_texture_gather:                             1;
+  usize ARB_texture_mirror_clamp_to_edge:               1;
+  usize ARB_texture_multisample:                        1;
+  usize ARB_texture_query_levels:                       1;
+  usize ARB_texture_query_lod:                          1;
+  usize ARB_texture_rectangle:                          1;
+  usize ARB_texture_rg:                                 1;
+  usize ARB_texture_rgb10_a2ui:                         1;
+  usize ARB_texture_stencil8:                           1;
+  usize ARB_texture_storage:                            1;
+  usize ARB_texture_storage_multisample:                1;
+  usize ARB_texture_swizzle:                            1;
+  usize ARB_texture_view:                               1;
+  usize ARB_timer_query:                                1;
+  usize ARB_transform_feedback2:                        1;
+  usize ARB_transform_feedback3:                        1;
+  usize ARB_transform_feedback_instanced:               1;
+  usize ARB_transform_feedback_overflow_query:          1;
+  usize ARB_uniform_buffer_object:                      1;
+  usize ARB_vertex_array_bgra:                          1;
+  usize ARB_vertex_array_object:                        1;
+  usize ARB_vertex_attrib_64bit:                        1;
+  usize ARB_vertex_attrib_binding:                      1;
+  usize ARB_vertex_type_10f_11f_11f_rev:                1;
+  usize ARB_vertex_type_2_10_10_10_rev:                 1;
+  usize ARB_viewport_array:                             1;
+  usize ARB_window_pos:                                 1;
+  usize EXT_Cg_shader:                                  1;
+  usize EXT_EGL_image_array:                            1;
+  usize EXT_EGL_image_external_wrap_modes:              1;
+  usize EXT_EGL_image_storage:                          1;
+  usize EXT_YUV_target:                                 1;
+  usize EXT_abgr:                                       1;
+  usize EXT_bindable_uniform:                           1;
+  usize EXT_blend_func_extended:                        1;
+  usize EXT_blit_framebuffer_params:                    1;
+  usize EXT_buffer_storage:                             1;
+  usize EXT_clip_control:                               1;
+  usize EXT_clip_cull_distance:                         1;
+  usize EXT_color_buffer_float:                         1;
+  usize EXT_color_buffer_half_float:                    1;
+  usize EXT_copy_image:                                 1;
+  usize EXT_debug_label:                                1;
+  usize EXT_debug_marker:                               1;
+  usize EXT_direct_state_access:                        1;
+  usize EXT_discard_framebuffer:                        1;
+  usize EXT_disjoint_timer_query:                       1;
+  usize EXT_draw_buffers2:                              1;
+  usize EXT_draw_buffers_indexed:                       1;
+  usize EXT_draw_instanced:                             1;
+  usize EXT_external_buffer:                            1;
+  usize EXT_fragment_invocation_density:                1;
+  usize EXT_framebuffer_blit:                           1;
+  usize EXT_framebuffer_multisample:                    1;
+  usize EXT_framebuffer_object:                         1;
+  usize EXT_framebuffer_sRGB:                           1;
+  usize EXT_geometry_shader:                            1;
+  usize EXT_geometry_shader4:                           1;
+  usize EXT_gpu_shader4:                                1;
+  usize EXT_gpu_shader5:                                1;
+  usize EXT_import_sync_object:                         1;
+  usize EXT_memory_object:                              1;
+  usize EXT_memory_object_fd:                           1;
+  usize EXT_multisampled_render_to_texture:             1;
+  usize EXT_multisampled_render_to_texture2:            1;
+  usize EXT_packed_depth_stencil:                       1;
+  usize EXT_packed_float:                               1;
+  usize EXT_polygon_offset_clamp:                       1;
+  usize EXT_post_depth_coverage:                        1;
+  usize EXT_primitive_bounding_box:                     1;
+  usize EXT_protected_textures:                         1;
+  usize EXT_provoking_vertex:                           1;
+  usize EXT_pvrtc_sRGB:                                 1;
+  usize EXT_raster_multisample:                         1;
+  usize EXT_read_format_bgra:                           1;
+  usize EXT_robustness:                                 1;
+  usize EXT_sRGB:                                       1;
+  usize EXT_sRGB_write_control:                         1;
+  usize EXT_semaphore:                                  1;
+  usize EXT_separate_shader_objects:                    1;
+  usize EXT_shader_framebuffer_fetch:                   1;
+  usize EXT_shader_image_load_formatted:                1;
+  usize EXT_shader_image_load_store:                    1;
+  usize EXT_shader_integer_mix:                         1;
+  usize EXT_shader_io_blocks:                           1;
+  usize EXT_shader_non_constant_global_initializers:    1;
+  usize EXT_shader_texture_lod:                         1;
+  usize EXT_shadow_samplers:                            1;
+  usize EXT_sparse_texture2:                            1;
+  usize EXT_tessellation_shader:                        1;
+  usize EXT_texture_array:                              1;
+  usize EXT_texture_border_clamp:                       1;
+  usize EXT_texture_buffer:                             1;
+  usize EXT_texture_buffer_object:                      1;
+  usize EXT_texture_compression_dxt1:                   1;
+  usize EXT_texture_compression_latc:                   1;
+  usize EXT_texture_compression_rgtc:                   1;
+  usize EXT_texture_compression_s3tc:                   1;
+  usize EXT_texture_cube_map_array:                     1;
+  usize EXT_texture_filter_anisotropic:                 1;
+  usize EXT_texture_filter_minmax:                      1;
+  usize EXT_texture_format_BGRA8888:                    1;
+  usize EXT_texture_format_sRGB_override:               1;
+  usize EXT_texture_integer:                            1;
+  usize EXT_texture_lod:                                1;
+  usize EXT_texture_mirror_clamp:                       1;
+  usize EXT_texture_norm16:                             1;
+  usize EXT_texture_rectangle:                          1;
+  usize EXT_texture_sRGB_decode:                        1;
+  usize EXT_texture_sRGB_R8:                            1;
+  usize EXT_texture_shared_exponent:                    1;
+  usize EXT_texture_storage:                            1;
+  usize EXT_texture_swizzle:                            1;
+  usize EXT_texture_type_2_10_10_10_REV:                1;
+  usize EXT_timer_query:                                1;
+  usize EXT_transform_feedback2:                        1;
+  usize EXT_vertex_array_bgra:                          1;
+  usize EXT_vertex_attrib_64bit:                        1;
+  usize EXT_window_rectangles:                          1;
+  usize EXTX_framebuffer_mixed_formats:                 1;
+  usize KHR_blend_equation_advanced:                    1;
+  usize KHR_blend_equation_advanced_coherent:           1;
+  usize KHR_debug:                                      1;
+  usize KHR_context_flush_control:                      1;
+  usize KHR_no_error:                                   1;
+  usize KHR_parallel_shader_compile:                    1;
+  usize KHR_robust_buffer_access_behavior:              1;
+  usize KHR_robustness:                                 1;
+  usize KHR_texture_compression_astc_ldr:               1;
+  usize KHR_texture_compression_astc_hdr:               1;
+  usize KTX_buffer_region:                              1;
+  usize OES_EGL_image:                                  1;
+  usize OES_EGL_image_external:                         1;
+  usize OES_EGL_image_external_essl3:                   1;
+  usize OES_EGL_sync:                                   1;
+  usize OES_compressed_ETC1_RGB8_texture:               1;
+  usize OES_depth24:                                    1;
+  usize OES_depth_texture:                              1;
+  usize OES_depth_texture_cube_map:                     1;
+  usize OES_element_index_uint:                         1;
+  usize OES_framebuffer_object:                         1;
+  usize OES_get_program_binary:                         1;
+  usize OES_packed_depth_stencil:                       1;
+  usize OES_read_format:                                1;
+  usize OES_rgb8_rgba8:                                 1;
+  usize OES_shader_image_atomic:                        1;
+  usize OES_sample_shading:                             1;
+  usize OES_sample_variables:                           1;
+  usize OES_shader_multisample_interpolation:           1;
+  usize OES_surfaceless_context:                        1;
+  usize OES_standard_derivatives:                       1;
+  usize OES_texture_3D:                                 1;
+  usize OES_texture_compression_astc:                   1;
+  usize OES_texture_float:                              1;
+  usize OES_texture_float_linear:                       1;
+  usize OES_texture_format_sRGB_override:               1;
+  usize OES_texture_half_float:                         1;
+  usize OES_texture_half_float_linear:                  1;
+  usize OES_texture_npot:                               1;
+  usize OES_texture_stencil8:                           1;
+  usize OES_texture_storage_multisample_2d_array:       1;
+  usize OES_texture_type_2_10_10_10_REV:                1;
+  usize OES_texture_view:                               1;
+  usize OES_vertex_array_object:                        1;
+  usize OES_vertex_half_float:                          1;
+  usize AMD_compressed_ATC_texture:                     1;
+  usize AMD_multi_draw_indirect:                        1;
+  usize AMD_seamless_cubemap_per_texture:               1;
+  usize AMD_shader_trinary_minmax:                      1;
+  usize AMD_vertex_shader_viewport_index:               1;
+  usize AMD_vertex_shader_layer:                        1;
+  usize ANDROID_extension_pack_es31a:                   1;
+  usize ANGLE_texture_compression_dxt3:                 1;
+  usize ANGLE_texture_compression_dxt5:                 1;
+  usize APPLE_clip_distance:                            1;
+  usize APPLE_color_buffer_packed_float:                1;
+  usize APPLE_copy_texture_levels:                      1;
+  usize APPLE_rgb_422:                                  1;
+  usize APPLE_texture_format_BGRA8888:                  1;
+  usize ARM_shader_framebuffer_fetch_depth_stencil:     1;
+  usize ATI_texture_float:                              1;
+  usize ATI_texture_mirror_once:                        1;
+  usize IMG_read_format:                                1;
+  usize IMG_texture_compression_pvrtc:                  1;
+  usize MESA_window_pos:                                1;
+  usize NV_ES1_1_compatibility:                         1;
+  usize NV_ES3_1_compatibility:                         1;
+  usize NV_bindless_multi_draw_indirect:                1;
+  usize NV_bindless_multi_draw_indirect_count:          1;
+  usize NV_bindless_texture:                            1;
+  usize NV_blend_equation_advanced:                     1;
+  usize NV_blend_equation_advanced_coherent:            1;
+  usize NV_compute_program5:                            1;
+  usize NV_compute_shader_derivatives:                  1;
+  usize NV_conditional_render:                          1;
+  usize NV_conservative_raster:                         1;
+  usize NV_conservative_raster_dilate:                  1;
+  usize NV_conservative_raster_pre_snap:                1;
+  usize NV_conservative_raster_pre_snap_triangles:      1;
+  usize NV_conservative_raster_underestimation:         1;
+  usize NV_draw_texture:                                1;
+  usize NV_draw_vulkan_image:                           1;
+  usize NV_feature_query:                               1;
+  usize NV_fence:                                       1;
+  usize NV_geometry_shader4:                            1;
+  usize NV_geometry_shader_passthrough:                 1;
+  usize NV_gpu_program4:                                1;
+  usize NV_gpu_program4_1:                              1;
+  usize NV_gpu_program5:                                1;
+  usize NV_gpu_program5_mem_extended:                   1;
+  usize NV_gpu_program_fp64:                            1;
+  usize NV_gpu_shader5:                                 1;
+  usize NV_half_float:                                  1;
+  usize NV_memory_attachment:                           1;
+  usize NV_mesh_shader:                                 1;
+  usize NV_packed_depth_stencil:                        1;
+  usize NV_parameter_buffer_object:                     1;
+  usize NV_parameter_buffer_object2:                    1;
+  usize NV_path_rendering:                              1;
+  usize NV_path_rendering_shared_edge:                  1;
+  usize NV_primitive_restart:                           1;
+  usize NV_shader_atomic_counters:                      1;
+  usize NV_shader_atomic_float:                         1;
+  usize NV_shader_atomic_float64:                       1;
+  usize NV_shader_atomic_fp16_vector:                   1;
+  usize NV_shader_atomic_int64:                         1;
+  usize NV_shader_buffer_load:                          1;
+  usize NV_shader_noperspective_interpolation:          1;
+  usize NV_shader_storage_buffer_object:                1;
+  usize NV_shader_texture_footprint:                    1;
+  usize NV_shader_thread_group:                         1;
+  usize NV_shader_thread_shuffle:                       1;
+  usize NV_stereo_view_rendering:                       1;
+  usize NV_texture_barrier:                             1;
+  usize NV_texture_compression_vtc:                     1;
+  usize NV_texture_rectangle:                           1;
+  usize NV_texture_shader:                              1;
+  usize NV_texture_shader2:                             1;
+  usize NV_texture_shader3:                             1;
+  usize NV_transform_feedback:                          1;
+  usize NV_transform_feedback2:                         1;
+  usize NV_uniform_buffer_unified_memory:               1;
+  usize NV_vertex_array_range:                          1;
+  usize NV_vertex_array_range2:                         1;
+  usize NV_vertex_attrib_64bit:                         1;
+  usize NV_vertex_buffer_unified_memory:                1;
+  usize NVX_blend_equation_advanced_multi_draw_buffers: 1;
+  usize NVX_conditional_render:                         1;
+  usize NVX_gpu_memory_info:                            1;
+  usize NVX_multigpu_info:                              1;
+  usize NVX_nvenc_interop:                              1;
+  usize OVR_multiview:                                  1;
+  usize OVR_multiview2:                                 1;
+  usize OVR_multiview_multisampled_render_to_texture:   1;
+  usize QCOM_alpha_test:                                1;
+  usize QCOM_texture_foveated:                          1;
+  usize QCOM_tiled_rendering:                           1;
+  usize QCOM_shader_framebuffer_fetch_noncoherent:      1;
+  usize QCOM_shader_framebuffer_fetch_rate:             1;
+  usize S3_s3tc:                                        1;
+  usize SGIS_generate_mipmap:                           1;
 #if PLATFORM_WINDOWS
-  usize EXT_memory_object_win32: 1;
-  usize EXT_semaphore_win32: 1;
-  usize EXT_win32_keyed_mutex: 1;
-  usize WIN_swap_hint: 1;
+  usize EXT_memory_object_win32:                        1;
+  usize EXT_semaphore_win32:                            1;
+  usize EXT_win32_keyed_mutex:                          1;
+  usize WIN_swap_hint:                                  1;
 #endif
 } exts;
 
@@ -1351,8 +1399,8 @@ void* renderMain(void* arg) {
     glCheckFramebuffer();
 #endif
 
-    LOG(App, Info, "OpenGL Version %s", glGetString(GL_VERSION));
-    LOG(App, Info, "OpenGL Vendor: %s", glGetString(GL_VENDOR));
+    LOG(App, Info, "OpenGL Version %s",   glGetString(GL_VERSION));
+    LOG(App, Info, "OpenGL Vendor: %s",   glGetString(GL_VENDOR));
     LOG(App, Info, "OpenGL Renderer: %s", glGetString(GL_RENDERER));
 
     u16 glVersion;
@@ -1420,6 +1468,37 @@ void* renderMain(void* arg) {
         auto str{ reinterpret_cast<char const*>(glGetStringi(GL_EXTENSIONS, i)) };
         setupExtension({ str });
       }
+    }
+
+    {
+      auto str{ reinterpret_cast<char const*>(glGetString(GL_SHADING_LANGUAGE_VERSION)) };
+      LOG(App, Info, "GLSL Version: %s", str);
+    }
+
+    switch (glVersion) { // TODO gles
+#define V(gl, glsl) case GL##gl: glslHeader = "#version " #glsl "\n"; break
+      V(2_0, 110);
+      V(2_1, 120);
+      V(3_0, 130);
+      V(3_1, 140);
+      V(3_2, 150);
+      V(3_3, 330);
+      V(4_0, 400);
+      V(4_1, 410);
+      V(4_2, 420);
+      V(4_3, 430);
+      V(4_4, 440);
+      V(4_5, 450); default:
+      V(4_6, 460);
+#undef V
+    }
+
+    if (exts.ARB_explicit_attrib_location) {
+      glslExtensions += "#extension GL_ARB_explicit_attrib_location : require\n";
+    }
+
+    if (exts.ARB_explicit_uniform_location) {
+      glslExtensions += "#extension GL_ARB_explicit_uniform_location : require\n";
     }
 
     b2BodyDef groundBodyDef;
@@ -1491,14 +1570,7 @@ void* renderMain(void* arg) {
     glCheck();
     LOG(Test, Info, "Triangle VAO");
 
-#if PLATFORM_MACOS
-# define GLSL_VERSION "#version 410 core\n"
-#else
-# define GLSL_VERSION "#version 300 es\n" "precision mediump float;\n"
-#endif
-
     auto triangleVertexSource =
-      GLSL_VERSION
       "layout (location = 0) in vec3 pos;\n"
       "uniform vec2 worldPos;\n"
       "void main() {\n"
@@ -1506,20 +1578,13 @@ void* renderMain(void* arg) {
       "}\n";
 
     auto triangleFragmentSource =
-      GLSL_VERSION
       "layout (location = 0) out vec4 col;\n"
       "void main() {\n"
       "  col = vec4(.4, .5, .6, 1);\n"
       "}\n";
 
-    auto triangleVert{ glCreateShader(GL_VERTEX_SHADER) };
-    auto triangleFrag{ glCreateShader(GL_FRAGMENT_SHADER) };
-    glShaderSource(triangleVert, 1, &triangleVertexSource,   nullptr);
-    glShaderSource(triangleFrag, 1, &triangleFragmentSource, nullptr);
-    glCompileShader(triangleVert);
-    glCompileShader(triangleFrag);
-    glCheckShader(triangleVert);
-    glCheckShader(triangleFrag);
+    auto triangleVert{ glBuildShader(GL_VERTEX_SHADER, triangleVertexSource) };
+    auto triangleFrag{ glBuildShader(GL_FRAGMENT_SHADER, triangleFragmentSource) };
 
     triangleProg = glCreateProgram();
     glAttachShader(triangleProg, triangleVert);
@@ -1532,7 +1597,6 @@ void* renderMain(void* arg) {
 
     // ImGui Init
     auto vertexSource =
-      GLSL_VERSION
       "layout (location = 0) in vec2 pos;\n"
       "layout (location = 1) in vec2 uv;\n"
       "layout (location = 2) in vec4 col;\n"
@@ -1546,23 +1610,16 @@ void* renderMain(void* arg) {
       "}\n";
 
     auto fragmentSource =
-      GLSL_VERSION
       "in vec2 frag_uv;\n"
       "in vec4 frag_col;\n"
       "uniform sampler2D tex;\n"
       "layout (location = 0) out vec4 out_col;\n"
       "void main() {\n"
-      "  out_col = frag_col * texture(tex, frag_uv);\n"
+      "  out_col = frag_col * texture2D(tex, frag_uv);\n"
       "}\n";
 
-    auto vert{ glCreateShader(GL_VERTEX_SHADER) };
-    auto frag{ glCreateShader(GL_FRAGMENT_SHADER) };
-    glShaderSource(vert, 1, &vertexSource, nullptr);
-    glShaderSource(frag, 1, &fragmentSource, nullptr);
-    glCompileShader(vert);
-    glCompileShader(frag);
-    glCheckShader(vert);
-    glCheckShader(frag);
+    auto vert{ glBuildShader(GL_VERTEX_SHADER, vertexSource) };
+    auto frag{ glBuildShader(GL_FRAGMENT_SHADER, fragmentSource) };
 
     prog = glCreateProgram();
     glAttachShader(prog, vert);

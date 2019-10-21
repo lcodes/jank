@@ -26,10 +26,29 @@ public:
     ASSERT(result);
   }
 
+  void present() override {
+    glXSwapBuffers(display, drawable);
+  }
+
   f64 getDeltaTime() override {
     return .016;
   }
 };
+
+static void* presentMain(void* arg) {
+  auto gl{ reinterpret_cast<LinuxOpenGL*>(arg) };
+  gl->makeCurrent();
+  while (true) {
+#if GFX_PRESENT_THREAD
+    gl->presentReady.wait();
+    gl->present();
+    gl->renderReady.set();
+#else
+    renderMain(arg);
+#endif
+  }
+  return nullptr;
+}
 
 static i32 visualAttrs[]{
   GLX_X_RENDERABLE, True,
@@ -96,16 +115,23 @@ i32 main(i32 argc UNUSED, char* argv UNUSED[]) {
   gl.drawable = glXCreateWindow(gl.display, configs[0], window, 0);
   ASSERT(gl.drawable);
 
-  while (true) {
+  pthread_t render, present;
+#if GFX_PRESENT_THREAD
+  pthread_create(&render, nullptr, &renderMain, &gl);
+#endif
+  pthread_create(&present, nullptr, &presentMain, &gl);
+
+  auto running{ true };
+  while (running) {
     auto event{ xcb_wait_for_event(conn) };
     ASSERT(event);
 
     switch (event->response_type & ~0x80) {
     case XCB_KEY_PRESS:
+      running = false;
       break;
 
     case XCB_EXPOSE:
-      renderMain(&gl);
       break;
     }
 

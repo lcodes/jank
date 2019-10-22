@@ -244,25 +244,19 @@ GL_CHECK_INFO_LOG(glCheckProgram, glGetProgramiv, glGetProgramInfoLog, GL_LINK_S
 #endif
 
 static bool isGLES;
-static char const* glslHeader;
-static std::string glslExtensions;
+static std::string glslHeader;
 
 class ShaderBuilder {
-  char const* sources[4];
+  char const* sources[2];
   u32 numSources;
 
 public:
   ShaderBuilder() : numSources(0) {
-    push(glslHeader);
-    push(glslExtensions.c_str());
-
-    if (isGLES) {
-      push("precision mediump float;\n");
-    }
+    push(glslHeader.c_str());
   }
 
   void push(char const* source) {
-    ASSERT(numSources < 4);
+    ASSERT(numSources < 2);
     sources[numSources++] = source;
   }
 
@@ -669,6 +663,16 @@ static struct {
   usize EXT_semaphore_win32:                            1;
   usize EXT_win32_keyed_mutex:                          1;
   usize WIN_swap_hint:                                  1;
+#elif PLATFORM_HTML5
+  usize WEBGL_compressed_texture_etc: 1;
+  usize WEBGL_compressed_texture_etc1: 1;
+  usize WEBGL_compressed_texture_s3tc: 1;
+  usize WEBGL_debug_renderer_info: 1;
+  usize WEBGL_debug_shaders: 1;
+  usize WEBGL_lose_context: 1;
+  usize WEBGL_multi_draw: 1;
+  usize WEBGL_multi_draw_instanced: 1;
+  usize WEBGL_video_texture: 1;
 #endif
 } exts;
 
@@ -1201,6 +1205,17 @@ static bool setupExtensionMisc(std::string_view ext) {
   TEST(S3_s3tc, {})
   TEST(SGIS_generate_mipmap, { // 3.0
   })
+#if PLATFORM_HTML5
+  TEST(WEBGL_compressed_texture_etc, {})
+  TEST(WEBGL_compressed_texture_etc1, {})
+  TEST(WEBGL_compressed_texture_s3tc, {})
+  TEST(WEBGL_debug_renderer_info, {})
+  TEST(WEBGL_debug_shaders, {})
+  TEST(WEBGL_lose_context, {})
+  TEST(WEBGL_multi_draw, {})
+  TEST(WEBGL_multi_draw_instanced, {})
+  TEST(WEBGL_video_texture, {})
+#endif
   else {
     return false;
   }
@@ -1403,6 +1418,11 @@ void* renderMain(void* arg) {
     LOG(App, Info, "OpenGL Vendor: %s",   glGetString(GL_VENDOR));
     LOG(App, Info, "OpenGL Renderer: %s", glGetString(GL_RENDERER));
 
+    // TODO better detection, usage
+#if PLATFORM_ANDROID || PLATFORM_IPHONE || PLATFORM_HTML5
+    isGLES = true;
+#endif
+
     u16 glVersion;
     {
       i32 major, minor;
@@ -1475,30 +1495,50 @@ void* renderMain(void* arg) {
       LOG(App, Info, "GLSL Version: %s", str);
     }
 
-    switch (glVersion) { // TODO gles
-#define V(gl, glsl) case GL##gl: glslHeader = "#version " #glsl "\n"; break
-      V(2_0, 110);
-      V(2_1, 120);
-      V(3_0, 130);
-      V(3_1, 140);
-      V(3_2, 150);
-      V(3_3, 330);
-      V(4_0, 400);
-      V(4_1, 410);
-      V(4_2, 420);
-      V(4_3, 430);
-      V(4_4, 440);
-      V(4_5, 450); default:
-      V(4_6, 460);
+    if (isGLES) {
+      switch (glVersion) {
+#define V(gl, glsl) case GLES##gl: glslHeader = "#version " #glsl " es\n"; break
+        V(2_0, 100); default:
+        V(3_0, 300);
 #undef V
+      }
+    }
+    else {
+      switch (glVersion) {
+#define V(gl, glsl) case GL##gl: glslHeader = "#version " #glsl "\n"; break
+        V(2_0, 110);
+        V(2_1, 120);
+        V(3_0, 130);
+        V(3_1, 140);
+        V(3_2, 150);
+        V(3_3, 330);
+        V(4_0, 400);
+        V(4_1, 410);
+        V(4_2, 420);
+        V(4_3, 430);
+        V(4_4, 440);
+        V(4_5, 450); default:
+        V(4_6, 460);
+#undef V
+      }
     }
 
     if (exts.ARB_explicit_attrib_location) {
-      glslExtensions += "#extension GL_ARB_explicit_attrib_location : require\n";
+      glslHeader += "#extension GL_ARB_explicit_attrib_location : require\n";
     }
 
     if (exts.ARB_explicit_uniform_location) {
-      glslExtensions += "#extension GL_ARB_explicit_uniform_location : require\n";
+      glslHeader += "#extension GL_ARB_explicit_uniform_location : require\n";
+    }
+
+    if (isGLES) {
+      glslHeader += "precision mediump float;\n";
+    }
+
+    if (glVersion >= GL3_0) {
+      glslHeader += "#define texture1D texture\n";
+      glslHeader += "#define texture2D texture\n";
+      glslHeader += "#define texture3D texture\n";
     }
 
     b2BodyDef groundBodyDef;

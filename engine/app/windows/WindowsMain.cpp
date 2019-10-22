@@ -90,9 +90,6 @@ static void redirect(DWORD stdHandle, char const* mode, FILE* fp) {
     *fp = *fd;
 }
 
-extern void foo(int a, int b, ...);
-#define FOO(a, b, ...) foo(a, b, ##__VA_ARGS__)
-
 int WINAPI wWinMain(_In_     HINSTANCE instance,
                     _In_opt_ HINSTANCE prevInstance,
                     _In_     PWSTR cmdLine,
@@ -118,6 +115,10 @@ int WINAPI wWinMain(_In_     HINSTANCE instance,
   //LOG(App, Info, "Test");
 #endif
 
+  WindowsOpenGL gl;
+  gl.width = 1920;
+  gl.height = 1024;
+
   // Create window
   WNDCLASSEXW wc{ sizeof(wc) };
   wc.style = CS_OWNDC;// CS_HREDRAW | CS_VREDRAW;
@@ -128,20 +129,21 @@ int WINAPI wWinMain(_In_     HINSTANCE instance,
   wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BACKGROUND + 1);
   wc.lpszClassName = L"OpenGL";
   wc.hIconSm = wc.hIcon;
-
   auto classAtom = reinterpret_cast<LPCWSTR>(RegisterClassExW(&wc));
 
   auto styleEx = WS_EX_APPWINDOW;
   auto style = WS_OVERLAPPEDWINDOW;
+  RECT rc{ 0, 0, gl.width, gl.height };
+  AdjustWindowRectEx(&rc, style, false, styleEx);
+
   auto wnd = CreateWindowEx(styleEx, classAtom, TEXT(""), style,
-                          CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
-                          nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+                            CW_USEDEFAULT, CW_USEDEFAULT,
+                            rc.right - rc.left,
+                            rc.bottom - rc.top,
+                            nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
 
   ShowWindow(wnd, SW_SHOWDEFAULT);
 
-  WindowsOpenGL gl;
-  gl.width = 800;
-  gl.height = 600;
   gl.dc = GetDC(wnd);
 
   PIXELFORMATDESCRIPTOR pfd{};

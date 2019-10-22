@@ -2,7 +2,7 @@
 
 #include "core/Core.hpp"
 
-#define GFX_PRESENT_THREAD 1 && !PLATFORM_HTML5
+#define GFX_PRESENT_THREAD 0 && !PLATFORM_HTML5
 
 #if PLATFORM_POSIX
 # include <pthread.h>
@@ -99,3 +99,12 @@ public:
 };
 
 void* renderMain(void* arg);
+
+#pragma pack(1)
+struct MeshHeader {
+  u32 numIndices;
+  u32 numVertices;
+  // indices data...
+  // vertice data...
+};
+#pragma pack()

@@ -1,6 +1,9 @@
 #include "app/App.hpp"
 #include "app/GfxTest.hpp"
 
+#include "rtm/matrix4x4f.h"
+#include "rtm/quatf.h"
+#include "rtm/qvvf.h"
 #include "rtm/vector4f.h"
 #include "Box2D/Box2D.h"
 #include "imgui.h"
@@ -80,7 +83,7 @@ void jank_imgui_setClipboardText(void*, char const*) {}
 #endif
 
 #if BUILD_EDITOR
-void testMeshImport();
+std::string testMeshImport();
 #endif
 
 
@@ -1379,13 +1382,17 @@ static u32 bufs[2];
 static GLuint fontTexture;
 static float r{0}, g{0}, b{0};
 
+static u32 vaoTest;
+static u32 vboTest;
+static u32 iboTest;
+
 constexpr i32 velocityIterations = 6;
 constexpr i32 positionIterations = 2;
 
 static b2World world{{0, -10}};
 static b2Body* groundBody;
 static b2Body* body;
-static u32 worldPos;
+static u32 mvpPos;
 
 void* renderMain(void* arg) {
   auto gl{ reinterpret_cast<OpenGL*>(arg) };
@@ -1398,10 +1405,6 @@ void* renderMain(void* arg) {
 
   if (!hasInit) {
     hasInit = true;
-
-  #if BUILD_EDITOR
-    testMeshImport();
-  #endif
 
 #if PLATFORM_APPLE
     pthread_setname_np("Render");
@@ -1612,15 +1615,19 @@ void* renderMain(void* arg) {
 
     auto triangleVertexSource =
       "layout (location = 0) in vec3 pos;\n"
-      "uniform vec2 worldPos;\n"
+      //"uniform vec2 worldPos;\n"
+      "uniform mat4 mvp;\n"
+      "out vec3 v_col;\n"
       "void main() {\n"
-      "  gl_Position = vec4(pos.xy + worldPos, pos.z, 1);\n"
+      "  gl_Position = mvp * vec4(pos, 1);\n"
+      "  v_col = pos;\n"
       "}\n";
 
     auto triangleFragmentSource =
       "layout (location = 0) out vec4 col;\n"
+      "in vec3 v_col;\n"
       "void main() {\n"
-      "  col = vec4(.4, .5, .6, 1);\n"
+      "  col = vec4(v_col, 1);\n"
       "}\n";
 
     auto triangleVert{ glBuildShader(GL_VERTEX_SHADER, triangleVertexSource) };
@@ -1632,7 +1639,7 @@ void* renderMain(void* arg) {
     glLinkProgram(triangleProg);
     glCheckProgram(triangleProg);
 
-    worldPos = glGetUniformLocation(triangleProg, "worldPos");
+    mvpPos = glGetUniformLocation(triangleProg, "mvp");
     LOG(Test, Info, "Triangle Program");
 
     // ImGui Init
@@ -1706,20 +1713,35 @@ void* renderMain(void* arg) {
     glDisable(GL_DEPTH_TEST);
     glDepthMask(false);
 
-#if PLATFORM_MACOS
-    // FIXME: getting random crashes using APPLE's software renderer
-    //        this seems to fix it? maybe spawning thread too quickly?
-    //usleep(100000);
-#endif
+  #if BUILD_EDITOR
+    auto testMeshData = testMeshImport();
+    auto meshHeader = std::launder(reinterpret_cast<MeshHeader*>(testMeshData.data()));
+    auto indicesOffset = sizeof(MeshHeader);
+    auto indicesSize = meshHeader->numIndices * 2;
+    auto verticesOffset = indicesOffset + indicesSize;
+    auto verticesSize = meshHeader->numVertices * 6;
+    glGenVertexArrays(1, &vaoTest);
+    glBindVertexArray(vaoTest);
+    glGenBuffers(1, &vboTest);
+    glGenBuffers(1, &iboTest);
+    glBindBuffer(GL_ARRAY_BUFFER, vboTest);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboTest);
+    glBufferData(GL_ARRAY_BUFFER, verticesSize, testMeshData.data() + verticesOffset, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesSize, testMeshData.data() + indicesOffset, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_SHORT, true, 0, nullptr);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+    glCheck();
+  #endif
   }
 
 #if GFX_PRESENT_THREAD
   while (true)
 #endif
   {
-    r += 0.001f;
-    g += 0.0025f;
-    b += 0.0005f;
+    r += 0.0001f;
+    g += 0.00025f;
+    b += 0.00005f;
     if (r > 1) r = 0;
     if (g > 1) g = 0;
     if (b > 1) b = 0;
@@ -1742,8 +1764,8 @@ void* renderMain(void* arg) {
     jank_imgui_newFrame();
     ImGui::NewFrame();
 
-    bool show = true;
-    ImGui::ShowDemoWindow(&show);
+    //bool show = true;
+    //ImGui::ShowDemoWindow(&show);
 
     ImGui::Begin("Hello");
     ImGui::Text("%.3f ms | %.1f FPS", 1000.f / io.Framerate, io.Framerate);
@@ -1772,9 +1794,56 @@ void* renderMain(void* arg) {
     glCheck();
 
     glViewport(0, 0, width, height);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    rtm::matrix4x4f proj;
+    {
+      auto fov = rtm::degrees(60.f).as_radians();
+      auto y = 1.f / std::tanf(fov * .5f);
+      auto x = y * gl->width / gl->height;
+      auto a = .001f / (100.f - .001f);
+      auto b = a * 100.f;
+      proj = rtm::matrix_set(rtm::vector_set(x, 0, 0, 0),
+                             rtm::vector_set(0, y, 0, 0),
+                             rtm::vector_set(0, 0, a, -1),
+                             rtm::vector_set(0, 0, b, 0));
+    }
+
+    rtm::matrix4x4f view;
+    {
+      auto from = rtm::vector_set(std::sinf(r * 100) * 10, 4, std::cosf(r * 100) * 10, 0);
+      auto to = rtm::vector_set(0.f, 0, 0);
+      auto forward = rtm::vector_sub(from, to);
+      forward = rtm::vector_normalize3(forward, forward);
+      auto up = rtm::vector_set(0, 1.f, 0);
+      auto right = rtm::vector_cross3(up, forward);
+      up = rtm::vector_cross3(forward, right);
+
+      view = rtm::matrix_set(right,
+                             up,
+                             forward,
+                             rtm::vector_set_w(from, 1));
+      view = rtm::matrix_inverse(view);
+    }
+
+    auto viewProj = rtm::matrix_mul(*reinterpret_cast<rtm::matrix4x4f*>(&view), proj);
 
     glUseProgram(triangleProg);
-    glUniform2fv(worldPos, 1, reinterpret_cast<float const*>(&body->GetPosition()));
+  #if BUILD_EDITOR
+    {
+      auto model = rtm::matrix_from_translation(rtm::vector_set(0.f, 0.f, 0.f, 1.f));
+      auto mvp = rtm::matrix_mul(*reinterpret_cast<rtm::matrix4x4f*>(&model), viewProj);
+      glUniformMatrix4fv(mvpPos, 1, false, reinterpret_cast<float const*>(&mvp));
+      glBindVertexArray(vaoTest);
+      glDrawElements(GL_TRIANGLES, 84, GL_UNSIGNED_SHORT, nullptr);
+    }
+  #endif
+
+    auto pos = body->GetPosition();
+    auto model = rtm::matrix_from_translation(rtm::vector_set(pos.x, pos.y, 0.f, 1.f));
+    auto mvp = rtm::matrix_mul(*reinterpret_cast<rtm::matrix4x4f*>(&model), viewProj);
+    glUniformMatrix4fv(mvpPos, 1, false, reinterpret_cast<float const*>(&mvp));
+    //glUniformMatrix4fv(mvpPos, 1, false, &body->GetPosition().x);
     glBindVertexArray(vaoTriangle);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glCheck();

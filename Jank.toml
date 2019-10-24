@@ -56,6 +56,9 @@ assets  = "assets"
 sources = ["editor/**/*"]
 
 include_dirs = ["editor",
-                "external/assimp/include"]
+                "external/assimp/include",
+                "external/stb",
+                "external/Compressonator/Compressonator/Header",
+                ]
 
-libs = ["assimp", "IrrXML", "zlib"]
+libs = ["assimp", "IrrXML", "zlib", "Compressonator"]

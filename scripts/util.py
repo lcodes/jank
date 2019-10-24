@@ -10,7 +10,7 @@ is_windows = platform.system() == 'Windows'
 
 if is_windows:
   import winreg # TODO use this to find where devenv is installed
-  devenv = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\Common7\\IDE\\devenv.com'
+  devenv_cmd = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\Common7\\IDE\\devenv.com'
 
 def error(*args, **kwargs):
   print(*args, file=sys.stderr, **kwargs)
@@ -53,12 +53,12 @@ def __copy_all(build_dir, kwargs, config_name):
   inc_dir_full = os.path.join(inc_dir, config_name)
   lib_dir_full = os.path.join(lib_dir, config_name)
 
-  for inc in kwargs['includes']:
+  for inc in kwargs.get('includes', []):
     src = os.path.join(build_dir, inc)
     dst = os.path.join(inc_dir_full, os.path.basename(inc))
     __copy(src, dst, inc_dir_full, False)
 
-  for lib in kwargs['libs']:
+  for lib in kwargs.get('libs', {}):
     src = os.path.join(build_dir, lib)
     dst = os.path.join(lib_dir_full, kwargs['libs'][lib])
     __copy(src, dst, lib_dir_full, True)
@@ -68,39 +68,44 @@ def __cmake(input_dir, build_dir, args, kwargs):
                  cwd=build_dir,
                  check=True)
 
-def __cmake_devenv_build(build_dir, name, config):
-  subprocess.run([devenv, name + '.sln', '/Build', config + '|x64'],
-                 cwd=build_dir,
-                 check=True)
+def __devenv_fix(build_dir, kwargs):
+  for file_name in kwargs.get('vcxproj_files', []):
+    vcxproj_file = os.path.join(build_dir, file_name)
 
-def __cmake_devenv(input_dir, args, kwargs):
-  name      = os.path.basename(input_dir)
+    with open(vcxproj_file, 'r') as f:
+      vcxproj = f.read()
+
+    if '_ITERATOR_DEBUG_LEVEL' in vcxproj:
+      vcxproj = re.sub('_ITERATOR_DEBUG_LEVEL=.', '_ITERATOR_DEBUG_LEVEL=1', vcxproj)
+    else:
+      vcxproj = re.sub('_DEBUG', '_ITERATOR_DEBUG_LEVEL=1;_DEBUG', vcxproj)
+
+    with open(vcxproj_file, 'w') as f:
+      f.write(vcxproj)
+
+def __devenv_build(build_dir, name, config, kwargs):
+  subprocess.run([devenv_cmd, name + '.sln', '/Build', config + '|x64'],
+                 cwd=build_dir,
+                 check=True,
+                 env={**os.environ.copy(), **kwargs.get('env', {})})
+
+def __cmake_devenv(name, input_dir, args, kwargs):
   build_dir = os.path.join(temp_dir, name)
 
   if not os.path.isdir(build_dir):
     os.makedirs(build_dir)
 
   __cmake(input_dir, build_dir, args, kwargs)
+  __devenv_fix()
 
-  for file_name in kwargs['vcxproj_files']:
-    vcxproj_file = os.path.join(build_dir, file_name)
-
-    with open(vcxproj_file, 'r') as f:
-      vcxproj = f.read()
-
-    vcxproj = re.sub('_DEBUG', '_ITERATOR_DEBUG_LEVEL=1;_DEBUG', vcxproj)
-
-    with open(vcxproj_file, 'w') as f:
-      f.write(vcxproj)
-
-  __cmake_devenv_build(build_dir, name, 'Debug')
+  __devenv_build(build_dir, name, 'Debug', kwargs)
   __copy_all(build_dir, kwargs, 'debug')
 
-  __cmake_devenv_build(build_dir, name, 'RelWithDebInfo')
+  __devenv_build(build_dir, name, 'RelWithDebInfo', kwargs)
   __copy_all(build_dir, kwargs, 'release')
 
-def __cmake_make(input_dir, args, kwargs, config_name, config):
-  build_dir = os.path.join(temp_dir, os.path.basename(input_dir), config)
+def __cmake_make(name, input_dir, args, kwargs, config_name, config):
+  build_dir = os.path.join(temp_dir, name, config)
 
   if not os.path.isdir(build_dir):
     os.makedirs(build_dir)
@@ -113,9 +118,25 @@ def __cmake_make(input_dir, args, kwargs, config_name, config):
 
   __copy_all(build_dir, kwargs, config_name)
 
-def cmake(input_dir, args, **kwargs):
+def cmake(name, input_dir, args, **kwargs):
   if is_windows:
-    __cmake_devenv(input_dir, args, kwargs)
+    __cmake_devenv(name, input_dir, args, kwargs)
   else:
-    __cmake_make(input_dir, args, kwargs, 'debug',   'Debug')
-    __cmake_make(input_dir, args, kwargs, 'release', 'RelWithDebInfo')
+    __cmake_make(name, input_dir, args, kwargs, 'debug',   'Debug')
+    __cmake_make(name, input_dir, args, kwargs, 'release', 'RelWithDebInfo')
+
+def devenv(name, input_dir, **kwargs):
+  build_dir = os.path.join(root_dir, input_dir)
+
+  if kwargs.get('upgrade', False):
+    subprocess.run([devenv_cmd, name + '.sln', '/Upgrade'],
+                   cwd=build_dir,
+                   check=True)
+
+  __devenv_fix(build_dir, kwargs)
+
+  __devenv_build(build_dir, name, kwargs.get('debug', 'Debug'), kwargs)
+  __copy_all(build_dir, kwargs, 'debug')
+
+  __devenv_build(build_dir, name, kwargs.get('release', 'Release'), kwargs)
+  __copy_all(build_dir, kwargs, 'release')

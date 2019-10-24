@@ -6,6 +6,18 @@
 	path = external/assimp
 	url = git@github.com:assimp/assimp.git
 
+[submodule "external/stb"]
+	path = external/stb
+	url = git@github.com:nothings/stb.git
+
+[submodule "external/Compressonator"]
+	path = external/Compressonator
+	url = git@github.com:GPUOpen-Tools/Compressonator.git
+
+[submodule "external/uWebSockets"]
+	path = external/uWebSockets
+	url = git@github.com:uNetworking/uWebSockets.git
+
 [submodule "external/EGL-Registry"]
 	path = external/EGL-Registry
 	url = git@github.com:KhronosGroup/EGL-Registry.git
@@ -29,7 +41,3 @@
 [submodule "external/imgui"]
 	path = external/imgui
 	url = git@github.com:ocornut/imgui.git
-
-[submodule "external/uWebSockets"]
-	path = external/uWebSockets
-	url = git@github.com:uNetworking/uWebSockets.git

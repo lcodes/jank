@@ -3,7 +3,7 @@
 import util
 
 def build_assimp():
-  util.cmake('external/assimp', [
+  util.cmake('assimp', 'external/assimp', [
     '-DBUILD_SHARED_LIBS=OFF',
     '-DASSIMP_NO_EXPORT=ON',
     '-DASSIMP_BUILD_ASSIMP_TOOLS=OFF',

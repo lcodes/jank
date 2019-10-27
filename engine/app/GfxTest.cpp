@@ -1,12 +1,13 @@
 #include "app/App.hpp"
 #include "app/GfxTest.hpp"
 
-#include "rtm/matrix4x4f.h"
-#include "rtm/quatf.h"
 #include "rtm/qvvf.h"
-#include "rtm/vector4f.h"
 #include "Box2D/Box2D.h"
 #include "imgui.h"
+
+#if BUILD_EDITOR
+#include "Compressonator.h"
+#endif
 
 #if PLATFORM_ANDROID
 # include <GLES3/gl3.h>
@@ -37,8 +38,6 @@
 #if PLATFORM_POSIX
 # include <pthread.h>
 #endif
-
-#include <string>
 
 using namespace std::literals;
 
@@ -83,7 +82,10 @@ void jank_imgui_setClipboardText(void*, char const*) {}
 #endif
 
 #if BUILD_EDITOR
-std::string testMeshImport();
+std::string testMeshImport(Material** materials, u32* numMaterials,
+                           Skeleton* skeleton, Animation* animation);
+std::string testMeshImportSimple(char const* filename);
+u32 importTextureHDR(char const* filename);
 #endif
 
 
@@ -99,6 +101,7 @@ std::string testMeshImport();
   GL(TEXSUBIMAGE3D, TexSubImage3D)
 
 #  define GL1_3_PROCS \
+  GL(ACTIVETEXTURE, ActiveTexture); \
   GL(COMPRESSEDTEXIMAGE1D, CompressedTexImage1D); \
   GL(COMPRESSEDTEXIMAGE2D, CompressedTexImage2D); \
   GL(COMPRESSEDTEXIMAGE3D, CompressedTexImage3D); \
@@ -137,11 +140,14 @@ std::string testMeshImport();
   GL(SHADERSOURCE, ShaderSource); \
   GL(UNIFORM1I, Uniform1i); \
   GL(UNIFORM2FV, Uniform2fv); \
+  GL(UNIFORM3FV, Uniform3fv); \
+  GL(UNIFORMMATRIX3FV, UniformMatrix3fv); \
   GL(UNIFORMMATRIX4FV, UniformMatrix4fv); \
   GL(USEPROGRAM, UseProgram); \
   GL(VERTEXATTRIBPOINTER, VertexAttribPointer)
 
 # define GL3_0_PROCS \
+  GL(BINDBUFFERRANGE, BindBufferRange); \
   GL(BINDRENDERBUFFER, BindRenderbuffer); \
   GL(BINDFRAMEBUFFER, BindFramebuffer); \
   GL(BINDVERTEXARRAY, BindVertexArray); \
@@ -150,13 +156,18 @@ std::string testMeshImport();
   GL(DELETEFRAMEBUFFERS, DeleteFramebuffers); \
   GL(DELETERENDERBUFFERS, DeleteRenderbuffers); \
   GL(DELETEVERTEXARRAYS, DeleteVertexArrays); \
+  GL(FRAMEBUFFERRENDERBUFFER, FramebufferRenderbuffer); \
   GL(FRAMEBUFFERTEXTURE2D, FramebufferTexture2D); \
   GL(GENFRAMEBUFFERS, GenFramebuffers); \
   GL(GENRENDERBUFFERS, GenRenderbuffers); \
   GL(GENVERTEXARRAYS, GenVertexArrays); \
-  GL(GETSTRINGI, GetStringi)
+  GL(GETSTRINGI, GetStringi); \
+  GL(RENDERBUFFERSTORAGE, RenderbufferStorage); \
+  GL(VERTEXATTRIBIPOINTER, VertexAttribIPointer)
 
 # define GL3_1_PROCS \
+  GL(GETUNIFORMBLOCKINDEX, GetUniformBlockIndex); \
+  GL(UNIFORMBLOCKBINDING, UniformBlockBinding)
 
 # define GL3_2_PROCS \
   GL(DRAWELEMENTSBASEVERTEX, DrawElementsBaseVertex)
@@ -1372,8 +1383,43 @@ static void setupExtension(std::string_view ext) {
 // OpenGL + ImGui test
 // -----------------------------------------------------------------------------
 
+#if BUILD_EDITOR
+u32 loadImage(CMP_Texture const& tex, bool isNormal) {
+  u32 id;
+  glGenTextures(1, &id);
+  glBindTexture(GL_TEXTURE_2D, id);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+if (isNormal)
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, tex.dwWidth, tex.dwHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, tex.pData);
+else
+  glCompressedTexImage2D(GL_TEXTURE_2D, 0,
+                         isNormal ? GL_COMPRESSED_RG_RGTC2 : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+                         tex.dwWidth, tex.dwHeight, 0, tex.dwDataSize, tex.pData);
+
+  glCheck();
+  return id;
+}
+u32 loadImageHDR(void const* data, u32 w, u32 h) {
+  u32 id;
+  glGenTextures(1, &id);
+  glBindTexture(GL_TEXTURE_2D, id);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, data);
+  glCheck();
+  return id;
+}
+#endif
+
 static bool hasInit;
-static u32 fbo, tex;
+static u32 fbo, tex, rboDepth;
 static u32 vaoTriangle;
 static u32 vboTriangle;
 static u32 triangleProg, prog, texLoc, projLoc;
@@ -1382,9 +1428,66 @@ static u32 bufs[2];
 static GLuint fontTexture;
 static float r{0}, g{0}, b{0};
 
+struct alignas(256) CameraBuffer {
+  rtm::vector4f position;
+  float exposure;
+};
+
+struct alignas(256) MaterialBuffer {
+  float metallic;
+  float roughness;
+  float ao;
+  float useNormalMap;
+  rtm::float3f refractiveIndex;
+};
+
+struct LightBuffer {
+  rtm::vector4f position;
+  rtm::vector4f color;
+};
+
+constexpr u32 cameraOffset   = 0;
+constexpr u32 materialOffset = cameraOffset + 256;
+constexpr u32 lightsOffset   = materialOffset + 256;
+
+static u32 iblTex0, iblTex1, iblTex2;
+static u32 skyboxProg;
+
+static u32 uboTest;
+static u32 uboBones;
 static u32 vaoTest;
 static u32 vboTest;
 static u32 iboTest;
+static u32 testProg;
+static u32 subMeshesCountTest;
+static MeshHeader::SubMesh* subMeshesTest;
+static u32 numMaterials;
+static Material* materials;
+static Skeleton skeleton;
+static Animation animation;
+
+union Mat4 {
+  rtm::matrix4x4f m4x4;
+  rtm::matrix3x4f m3x4;
+  float a[4][4];
+  float v[16];
+};
+
+struct AnimState {
+  struct Layer {
+    u32 rotationKey = 0;
+    u32 positionKey = 0;
+    u32 scaleKey = 0;
+  };
+
+  float time = 0.0;
+  Layer* layers;
+  Mat4* localJoints;
+  Mat4* worldJoints;
+  Mat4* finalJoints; // TODO: remove, map UBO and write directly
+};
+
+static AnimState animState;
 
 constexpr i32 velocityIterations = 6;
 constexpr i32 positionIterations = 2;
@@ -1394,37 +1497,76 @@ static b2Body* groundBody;
 static b2Body* body;
 static u32 mvpPos;
 
+#if BUILD_EDITOR
+static u32 progGizmo;
+static u32 vboGizmo;
+static u32 iboGizmo;
+static u32 vaoGizmo;
+struct Gizmo {
+  u32 indexOffset;
+  u32 indexCount;
+  u32 vertexStart;
+};
+static Gizmo boneGizmo;
+static Gizmo sphereGizmo;
+static Gizmo cubeGizmo;
+#endif
+
+static void drawGizmo(Gizmo const& gizmo) {
+  glDrawElementsBaseVertex(GL_TRIANGLES, gizmo.indexCount, GL_UNSIGNED_INT,
+                           reinterpret_cast<void const*>(gizmo.indexOffset),
+                           gizmo.vertexStart);
+}
+
+static void drawBones(Mat4& model, Mat4& view, Mat4* bones) {
+  for (auto n = 0; n < skeleton.numBones; n++) {
+    Mat4 modelToView;
+    modelToView.m3x4 = rtm::matrix_mul(bones[n].m3x4,
+                                       rtm::matrix_mul(model.m3x4, view.m3x4));
+
+    glUniformMatrix4fv(1, 1, false, modelToView.v);
+    drawGizmo(sphereGizmo);
+  }
+}
+
+#if 0
+static u32 vboStream;
+static u32 iboStream;
+static void* vboStreamMap;
+static void* iboStreamMap;
+#endif
+
 void* renderMain(void* arg) {
   auto gl{ reinterpret_cast<OpenGL*>(arg) };
 
 #if PLATFORM_IPHONE
-    auto fboSurface{ gl->getSurface() };
+  auto fboSurface{ gl->getSurface() };
 #else
-    constexpr u32 fboSurface = 0;
+  constexpr u32 fboSurface = 0;
 #endif
 
   if (!hasInit) {
     hasInit = true;
 
-#if PLATFORM_APPLE
+  #if PLATFORM_APPLE
     pthread_setname_np("Render");
-#elif PLATFORM_POSIX
+  #elif PLATFORM_POSIX
     pthread_setname_np(pthread_self(), "Render");
-#endif
+  #endif
 
     gl->makeCurrent();
-#if PLATFORM_IPHONE
+  #if PLATFORM_IPHONE
     glCheckFramebuffer();
-#endif
+  #endif
 
-    LOG(App, Info, "OpenGL Version %s",   glGetString(GL_VERSION));
-    LOG(App, Info, "OpenGL Vendor: %s",   glGetString(GL_VENDOR));
+    LOG(App, Info, "OpenGL Version %s", glGetString(GL_VERSION));
+    LOG(App, Info, "OpenGL Vendor: %s", glGetString(GL_VENDOR));
     LOG(App, Info, "OpenGL Renderer: %s", glGetString(GL_RENDERER));
 
     // TODO better detection, usage
-#if PLATFORM_ANDROID || PLATFORM_IPHONE || PLATFORM_HTML5
+  #if PLATFORM_ANDROID || PLATFORM_IPHONE || PLATFORM_HTML5
     isGLES = true;
-#endif
+  #endif
 
     u16 glVersion;
     {
@@ -1454,21 +1596,21 @@ void* renderMain(void* arg) {
       }
     }
 
-#if PLATFORM_LINUX || PLATFORM_WINDOWS
-# define GL(type, name) gl##name = reinterpret_cast<PFNGL##type##PROC>(gl->getProcAddress("gl" #name))
-#  if PLATFORM_WINDOWS
+  #if PLATFORM_LINUX || PLATFORM_WINDOWS
+  # define GL(type, name) gl##name = reinterpret_cast<PFNGL##type##PROC>(gl->getProcAddress("gl" #name))
+  #  if PLATFORM_WINDOWS
     GL1_2_PROCS;
     GL1_3_PROCS;
     GL1_4_PROCS;
-#  endif
+  #  endif
     GL1_5_PROCS;
     GL2_0_PROCS;
     if (glVersion >= GL3_0) GL3_0_PROCS;
     if (glVersion >= GL3_1) GL3_1_PROCS;
     if (glVersion >= GL3_2) GL3_2_PROCS;
     if (glVersion >= GL3_3) GL3_3_PROCS;
-# undef GL
-#endif
+  # undef GL
+  #endif
 
     if (glVersion < GL3_0) {
       auto str{ reinterpret_cast<char const*>(glGetString(GL_EXTENSIONS)) };
@@ -1487,7 +1629,7 @@ void* renderMain(void* arg) {
       i32 numExts;
       glGetIntegerv(GL_NUM_EXTENSIONS, &numExts);
 
-      for (auto i{0}; i < numExts; i++) {
+      for (auto i{ 0 }; i < numExts; i++) {
         auto str{ reinterpret_cast<char const*>(glGetStringi(GL_EXTENSIONS, i)) };
         setupExtension({ str });
       }
@@ -1500,15 +1642,15 @@ void* renderMain(void* arg) {
 
     if (isGLES) {
       switch (glVersion) {
-#define V(gl, glsl) case GLES##gl: glslHeader = "#version " #glsl " es\n"; break
-        V(2_0, 100); default:
+      #define V(gl, glsl) case GLES##gl: glslHeader = "#version " #glsl " es\n"; break
+      V(2_0, 100); default:
         V(3_0, 300);
-#undef V
+      #undef V
       }
     }
     else {
       switch (glVersion) {
-#define V(gl, glsl) case GL##gl: glslHeader = "#version " #glsl "\n"; break
+      #define V(gl, glsl) case GL##gl: glslHeader = "#version " #glsl "\n"; break
         V(2_0, 110);
         V(2_1, 120);
         V(3_0, 130);
@@ -1520,9 +1662,9 @@ void* renderMain(void* arg) {
         V(4_2, 420);
         V(4_3, 430);
         V(4_4, 440);
-        V(4_5, 450); default:
+      V(4_5, 450); default:
         V(4_6, 460);
-#undef V
+      #undef V
       }
     }
 
@@ -1575,8 +1717,13 @@ void* renderMain(void* arg) {
     io.SetClipboardTextFn = jank_imgui_setClipboardText;
     io.GetClipboardTextFn = jank_imgui_getClipboardText;
 
+    // FBO
+    // ------------------------------------------------------------------------
     glGenFramebuffers(1, &fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glGenRenderbuffers(1, &rboDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, gl->width, gl->height);
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -1585,7 +1732,7 @@ void* renderMain(void* arg) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gl->width, gl->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
-    glBindTexture(GL_TEXTURE_2D, tex);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
     glCheckFramebuffer();
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
@@ -1593,7 +1740,9 @@ void* renderMain(void* arg) {
     glCheck();
     LOG(Test, Info, "Framebuffer");
 
+
     // Triangle init
+    // ------------------------------------------------------------------------
     float vertices[]{
       -.5f, -.5f, 0,
       .5f, -.5f, 0,
@@ -1617,17 +1766,17 @@ void* renderMain(void* arg) {
       "layout (location = 0) in vec3 pos;\n"
       //"uniform vec2 worldPos;\n"
       "uniform mat4 mvp;\n"
-      "out vec3 v_col;\n"
+      "out vec3 frag_col;\n"
       "void main() {\n"
       "  gl_Position = mvp * vec4(pos, 1);\n"
-      "  v_col = pos;\n"
+      "  frag_col = normalize(pos);\n"
       "}\n";
 
     auto triangleFragmentSource =
       "layout (location = 0) out vec4 col;\n"
-      "in vec3 v_col;\n"
+      "in vec3 frag_col;\n"
       "void main() {\n"
-      "  col = vec4(v_col, 1);\n"
+      "  col = vec4(frag_col, 1);\n"
       "}\n";
 
     auto triangleVert{ glBuildShader(GL_VERTEX_SHADER, triangleVertexSource) };
@@ -1642,7 +1791,321 @@ void* renderMain(void* arg) {
     mvpPos = glGetUniformLocation(triangleProg, "mvp");
     LOG(Test, Info, "Triangle Program");
 
+    // IBL
+    // ------------------------------------------------------------------------
+
+  #define SPHERICAL_UV_SOURCE \
+      "vec2 sphericalUV(vec3 v) {\n" \
+      "  vec2 uv = vec2(atan(v.z, v.x), -asin(v.y));\n" \
+      "  uv *= vec2(0.1591, 0.3183);\n" \
+      "  uv += 0.5;\n" \
+      "  return uv;\n" \
+      "}"
+
+  #define TONEMAP_UNCHARTED_2 \
+      "vec3 tonemapUncharted2(vec3 x) {\n" \
+      "  const float A = 0.15;\n" \
+      "  const float B = 0.50;\n" \
+      "  const float C = 0.10;\n" \
+      "  const float D = 0.20;\n" \
+      "  const float E = 0.02;\n" \
+      "  const float F = 0.30;\n" \
+      "  return ((x * (x * A + B * C) + D * E) / (x * (x * A + B) + D * F)) - E / F;" \
+      "}\n" \
+      "vec4 tonemapAndGammaCorrect(vec3 color, float exposure) {\n" \
+      "  color = tonemapUncharted2(color * exposure) * (1.0 / tonemapUncharted2(vec3(11.2)));\n" \
+      "  color = pow(color, vec3(1.0/2.2));\n" \
+      "  return vec4(color, 1);\n" \
+      "}\n"
+
+    iblTex0 = importTextureHDR("../data/hdri/entrance_hall_2k.hdr");
+    iblTex1 = importTextureHDR("../data/hdri/satara_night_2k.hdr");
+    iblTex2 = importTextureHDR("../data/hdri/rooitou_park_2k.hdr");
+
+    auto skyboxVertexSource =
+      "layout (location = 0) in vec3 vertexPosition;\n"
+      "layout (location = 0) uniform mat4 viewToClip;\n"
+      "layout (location = 1) uniform mat4 localToView;\n"
+      "out vec3 localPosition;\n"
+      "void main() {\n"
+      "  localPosition = vertexPosition;\n"
+      "  gl_Position = (localToView * viewToClip) * vec4(vertexPosition, 1.0);\n"
+      "}\n";
+
+    auto skyboxFragmentSource =
+      "in vec3 localPosition;\n"
+      "layout (location = 0) out vec4 fragColor;\n"
+      "layout (location = 2) uniform sampler2D iblTex;\n"
+      TONEMAP_UNCHARTED_2
+      SPHERICAL_UV_SOURCE
+      "void main() {\n"
+      "  vec3 color = texture2D(iblTex, sphericalUV(localPosition)).rgb;\n"
+      "  fragColor = tonemapAndGammaCorrect(color, 1.0);\n"
+      "}\n";
+
+    auto skyboxVert{ glBuildShader(GL_VERTEX_SHADER, skyboxVertexSource) };
+    auto skyboxFrag{ glBuildShader(GL_FRAGMENT_SHADER, skyboxFragmentSource) };
+
+    skyboxProg = glCreateProgram();
+    glAttachShader(skyboxProg, skyboxVert);
+    glAttachShader(skyboxProg, skyboxFrag);
+    glLinkProgram(skyboxProg);
+    glCheckProgram(skyboxProg);
+    glUseProgram(skyboxProg);
+    glUniform1i(2, 2);
+    glCheck();
+
+
+    // Test Model
+    // ------------------------------------------------------------------------
+
+    auto testVertexSource =
+      "layout (location = 0) in vec3 vertexPosition;\n"
+      //"layout (location = 1) in vec3 vertexNormal;\n"
+      "layout (location = 1) in vec3 vertexTangent0;\n"
+      "layout (location = 2) in vec3 vertexTangent1;\n"
+      "layout (location = 3) in vec2 vertexUV;\n"
+      "layout (location = 4) in vec4 vertexBoneWeights;\n"
+      "layout (location = 5) in ivec4 vertexBoneIndices;\n"
+      "layout (location = 0) uniform mat4 localToClip;\n"
+      "layout (location = 1) uniform mat4 localToWorld;\n"
+      "layout (binding = 3) uniform Skeleton {\n"
+      "  mat4 bones[256];\n"
+      "};\n"
+      "out vec3 worldPosition;\n"
+      //"out vec3 worldNormal;\n"
+      "out vec3 worldTangent0;\n"
+      "out vec3 worldTangent1;\n"
+      "out vec2 uv;\n"
+      "void main() {\n"
+      "  mat4 boneTransform =\n"
+      "    bones[vertexBoneIndices[0]] * vertexBoneWeights[0] +\n"
+      "    bones[vertexBoneIndices[1]] * vertexBoneWeights[1] +\n"
+      "    bones[vertexBoneIndices[2]] * vertexBoneWeights[2] +\n"
+      "    bones[vertexBoneIndices[3]] * vertexBoneWeights[3];\n"
+      "  vec4 localPosition = boneTransform * vec4(vertexPosition, 1.0);\n"
+      "  gl_Position = localToClip * localPosition;\n"
+      "  worldPosition = (localToWorld * localPosition).xyz;\n"
+      //"  worldNormal = mat3(localToWorld) * vertexNormal;\n"
+      "  mat3 boneToWorld = mat3(boneTransform) * mat3(localToWorld);\n"
+      "  worldTangent0 = boneToWorld * vertexTangent0;\n"
+      "  worldTangent1 = boneToWorld * vertexTangent1;\n"
+      "  uv = vertexUV;\n"
+      "}\n";
+
+    auto testFragmentSource =
+      "const float PI = 3.1415926535897932384626433832795;\n"
+      "layout (location = 0) out vec4 fragColor;\n"
+      "in vec3 worldPosition;\n"
+      //"in vec3 worldNormal;\n"
+      "in vec3 worldTangent0;\n"
+      "in vec3 worldTangent1;\n"
+      "in vec2 uv;\n"
+      "layout (location = 2) uniform sampler2D baseTex;\n"
+      "layout (location = 3) uniform sampler2D normalTex;\n"
+      "layout (location = 4) uniform sampler2D iblTex;\n"
+      "layout (binding = 0, std140) uniform Camera {\n"
+      "  vec3 position;\n"
+      "  float padding0;\n"
+      "  float exposure;\n"
+      "} camera;\n"
+      "layout (binding = 1, std140) uniform Material {\n"
+      "  float metallic;\n"
+      "  float roughness;\n"
+      "  float ao;\n"
+      "  float useNormalMap;\n"
+      "  vec3  refractiveIndex;\n"
+      "} material;\n"
+      "struct LightData {\n"
+      "  vec3 position;\n"
+      "  float padding0;\n"
+      "  vec3 color;\n"
+      "  float padding1;\n"
+      "};\n"
+      "layout (binding = 2, std140) uniform Light {\n"
+      " LightData lights[2];\n"
+      "};\n"
+      "vec3 fresnelSchlick(float cosTheta, vec3 f0) {\n"
+      "  return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);\n"
+      "}\n"
+      "float distributionGGX(vec3 n, vec3 h, float roughness) {\n"
+      "  float ndoth = max(dot(n, h), 0.0);\n"
+      "  float a     = roughness * roughness;\n"
+      "  float a2    = a * a;\n"
+      "  float d     = ndoth * ndoth * (a2 - 1.0) + 1.0;\n"
+      "  return a2 / max(PI * d * d, 0.001);\n"
+      "}\n"
+      "float geometrySchlickGGX(float ndotv, float roughness) {\n"
+      "  float r = roughness + 1.0;\n"
+      "  float k = (r * r) / 8.0;\n"
+      "  return ndotv / (ndotv * (1.0 - k) + k);\n"
+      "}\n"
+      "float geometrySmith(float ndotl, float ndotv, float roughness) {\n"
+      "  return geometrySchlickGGX(ndotl, roughness) * geometrySchlickGGX(ndotv, roughness);\n"
+      "}\n"
+      TONEMAP_UNCHARTED_2
+      SPHERICAL_UV_SOURCE
+      "void main() {\n"
+      "  vec3 t0 = normalize(worldTangent0);\n"
+      "  vec3 t1 = normalize(worldTangent1);\n"
+      "  vec3 t2 = cross(t0, t1);\n"
+      "  mat3 tbn = mat3(t1, t2, t0);\n"
+      //"  vec3 nm = vec3(texture2D(normalTex, uv).rg * 2.0 - 1.0, 0);\n"
+      //"  nm.z = sqrt(1.0 - dot(nm.xy, nm.xy));\n"
+      "  vec3 nm = texture2D(normalTex, uv).rgb;\n"
+      "  nm.xy = nm.xy * 2.0 - 1.0;\n"
+      //"  vec3 worldNormal = material.useNormalMap > 0.5 ? tbn * nm : t0;\n"
+      "  vec3 worldNormal = tbn * nm;\n"
+      "  vec3 albedo = texture2D(baseTex, uv).rgb;\n"
+      "  vec3 n = normalize(worldNormal);\n"
+      "  vec3 v = normalize(camera.position - worldPosition);\n"
+      "  float ndotv = max(dot(n, v), 0.0);\n"
+      "  vec3 f0 = mix(material.refractiveIndex, albedo, material.metallic);\n"
+      "  vec3 lo = vec3(0.0);\n"
+      "  float oneMinusMetallic = 1.0 - material.metallic;\n"
+      "  for (int i = 0; i < 2; i++) {\n"
+      "    vec3 light = lights[i].position - worldPosition;\n"
+      "    vec3 l = normalize(light);\n" // radiance
+      "    vec3 h = normalize(v + l);\n"
+      "    float distance = length(light);\n"
+      "    float attenuation = 1.0 / (distance * distance);\n"
+      "    vec3 radiance = lights[i].color * attenuation;\n"
+      "    float ndf = distributionGGX(n, h, material.roughness);\n" // cook-torrance
+      "    float ndotl = max(dot(n, l), 0.0);\n"
+      "    float g = geometrySmith(ndotl, ndotv, material.roughness);\n"
+      "    vec3 f = fresnelSchlick(max(dot(h, v), 0.0), f0);\n"
+      "    float d = 4 * ndotl * ndotv;\n"
+      "    vec3 specular = (ndf * g * f) / max(d, 0.001);\n"
+      "    vec3 kd = (vec3(1.0) - f) * oneMinusMetallic;\n"
+      "    lo += (kd * albedo / PI + specular) * radiance * ndotl;\n"
+      "  }\n"
+      "  vec3 kd = (vec3(1.0) - fresnelSchlick(ndotv, f0)) * oneMinusMetallic;\n"
+      "  vec3 irradiance = texture(iblTex, sphericalUV(n)).rgb * 0.05;\n"
+      "  vec3 diffuse = irradiance * albedo;\n"
+      "  vec3 ambient = kd * diffuse * material.ao;\n"
+      "  vec3 color = ambient + lo;\n"
+      "  fragColor = tonemapAndGammaCorrect(color * 16, camera.exposure);\n"
+      "}\n";
+
+    auto testVert{ glBuildShader(GL_VERTEX_SHADER, testVertexSource) };
+    auto testFrag{ glBuildShader(GL_FRAGMENT_SHADER, testFragmentSource) };
+
+    testProg = glCreateProgram();
+    glAttachShader(testProg, testVert);
+    glAttachShader(testProg, testFrag);
+    glLinkProgram(testProg);
+    glCheckProgram(testProg);
+    glUseProgram(testProg);
+    glUniform1i(2, 0);
+    glUniform1i(3, 1);
+    glUniform1i(4, 2);
+    glCheck();
+
+  #if BUILD_EDITOR
+    auto gizmoVertexSource =
+      "layout (location = 0) in vec3 vertexPosition;\n"
+      "layout (location = 1) in vec3 vertexNormal;\n"
+      "layout (location = 0) uniform mat4 viewToClip;\n"
+      "layout (location = 1) uniform mat4 localToView;\n"
+      "layout (location = 2) uniform vec3 color;\n"
+      "out flat vec3 vertexColor;\n"
+      "void main() {\n"
+      "  const vec3 lightPosition = vec3(-1, -0.5, 1);\n"
+      "  vec4 viewPosition = localToView * vec4(vertexPosition, 1);\n"
+      "  vec3 n = normalize(mat3(localToView) * vertexNormal);\n"
+      "  vec3 l = normalize(lightPosition - viewPosition.xyz);\n"
+      "  vec3 diffuse = color * max(dot(n, l), 0.3) * 0.65;\n"
+      "  vertexColor = pow(diffuse, vec3(1/2.2));\n"
+      "  gl_Position = viewToClip * viewPosition;\n"
+      "}\n";
+
+    auto gizmoFragmentSource =
+      "layout (location = 0) out vec4 fragColor;\n"
+      "in vec3 vertexColor;\n"
+      "void main() {\n"
+      "  fragColor = vec4(vertexColor, 1);\n"
+      "}\n";
+
+    auto gizmoVert{ glBuildShader(GL_VERTEX_SHADER, gizmoVertexSource) };
+    auto gizmoFrag{ glBuildShader(GL_FRAGMENT_SHADER, gizmoFragmentSource) };
+
+    progGizmo = glCreateProgram();
+    glAttachShader(progGizmo, gizmoVert);
+    glAttachShader(progGizmo, gizmoFrag);
+    glLinkProgram(progGizmo);
+    glCheckProgram(progGizmo);
+    glCheck();
+
+    {
+      auto boneData = testMeshImportSimple("../data/editor/gizmo/bone.stl");
+      auto sphereData = testMeshImportSimple("../data/editor/gizmo/sphere.stl");
+      auto cubeData = testMeshImportSimple("../data/editor/gizmo/cube.stl");
+      auto boneHeader = reinterpret_cast<MeshHeader const*>(boneData.data());
+      auto sphereHeader = reinterpret_cast<MeshHeader const*>(sphereData.data());
+      auto cubeHeader = reinterpret_cast<MeshHeader const*>(cubeData.data());
+      auto boneMesh = reinterpret_cast<MeshHeader::SubMesh const*>(boneData.data() + sizeof(MeshHeader));
+      auto sphereMesh = reinterpret_cast<MeshHeader::SubMesh const*>(sphereData.data() + sizeof(MeshHeader));
+      auto cubeMesh = reinterpret_cast<MeshHeader::SubMesh const*>(cubeData.data() + sizeof(MeshHeader));
+      auto indexOffset = sizeof(MeshHeader) + sizeof(MeshHeader::SubMesh);
+      auto boneIndexSize = boneHeader->numIndices * 4;
+      auto boneVertexSize = boneHeader->numVertices * 12;
+      auto bonePositionOffset = boneData.data() + indexOffset + boneIndexSize;
+      auto sphereIndexSize = sphereHeader->numIndices * 4;
+      auto sphereVertexSize = sphereHeader->numVertices * 12;
+      auto spherePositionOffset = sphereData.data() + indexOffset + sphereIndexSize;
+      auto cubeIndexSize = cubeHeader->numIndices * 4;
+      auto cubeVertexSize = cubeHeader->numVertices * 12;
+      auto cubePositionOffset = cubeData.data() + indexOffset + cubeIndexSize;
+      glGenVertexArrays(1, &vaoGizmo);
+      glBindVertexArray(vaoGizmo);
+      glGenBuffers(1, &vboGizmo);
+      glGenBuffers(1, &iboGizmo);
+      glBindBuffer(GL_ARRAY_BUFFER, vboGizmo);
+      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboGizmo);
+      glBufferData(GL_ARRAY_BUFFER, boneVertexSize * 2 + sphereVertexSize * 2 + cubeVertexSize * 2,
+                   nullptr, GL_STATIC_DRAW);
+      glBufferData(GL_ELEMENT_ARRAY_BUFFER, boneIndexSize + sphereIndexSize + cubeIndexSize,
+                   nullptr, GL_STATIC_DRAW);
+      u32 offset = 0;
+      glBufferSubData(GL_ARRAY_BUFFER, offset, boneVertexSize, bonePositionOffset);
+      offset += boneVertexSize;
+      glBufferSubData(GL_ARRAY_BUFFER, offset, sphereVertexSize, spherePositionOffset);
+      offset += sphereVertexSize;
+      glBufferSubData(GL_ARRAY_BUFFER, offset, cubeVertexSize, cubePositionOffset);
+      offset += cubeVertexSize;
+      glBufferSubData(GL_ARRAY_BUFFER, offset, boneVertexSize, bonePositionOffset + boneVertexSize);
+      offset += boneVertexSize;
+      glBufferSubData(GL_ARRAY_BUFFER, offset, sphereVertexSize, spherePositionOffset + sphereVertexSize);
+      offset += sphereVertexSize;
+      glBufferSubData(GL_ARRAY_BUFFER, offset, cubeVertexSize, cubePositionOffset + cubeVertexSize);
+      offset = 0;
+      glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, boneIndexSize, boneData.data() + indexOffset);
+      offset += boneIndexSize;
+      glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, sphereIndexSize, sphereData.data() + indexOffset);
+      offset += sphereIndexSize;
+      glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, cubeIndexSize, cubeData.data() + indexOffset);
+      glEnableVertexAttribArray(0);
+      glEnableVertexAttribArray(1);
+      glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, nullptr);
+      glVertexAttribPointer(1, 3, GL_FLOAT, false, 0,
+                            reinterpret_cast<void const*>(boneVertexSize + sphereVertexSize + cubeVertexSize));
+      glBindVertexArray(0);
+
+      boneGizmo.indexCount = boneMesh->indexCount;
+      boneGizmo.indexOffset = 0;
+      boneGizmo.vertexStart = 0;
+      sphereGizmo.indexCount = sphereMesh->indexCount;
+      sphereGizmo.indexOffset = boneIndexSize;
+      sphereGizmo.vertexStart = boneHeader->numVertices;
+      cubeGizmo.indexCount = cubeMesh->indexCount;
+      cubeGizmo.indexOffset = boneIndexSize + sphereIndexSize;
+      cubeGizmo.vertexStart = boneHeader->numVertices + sphereHeader->numVertices;
+    }
+  #endif
+
+
     // ImGui Init
+    // ------------------------------------------------------------------------
     auto vertexSource =
       "layout (location = 0) in vec2 pos;\n"
       "layout (location = 1) in vec2 uv;\n"
@@ -1662,7 +2125,7 @@ void* renderMain(void* arg) {
       "uniform sampler2D tex;\n"
       "layout (location = 0) out vec4 out_col;\n"
       "void main() {\n"
-      "  out_col = frag_col * texture2D(tex, frag_uv);\n"
+      "  out_col = frag_col * texture2D(tex, frag_uv).x;\n"
       "}\n";
 
     auto vert{ glBuildShader(GL_VERTEX_SHADER, vertexSource) };
@@ -1676,16 +2139,19 @@ void* renderMain(void* arg) {
 
     texLoc = glGetUniformLocation(prog, "tex");
     projLoc = glGetUniformLocation(prog, "proj");
+    glUseProgram(prog);
+    glUniform1i(texLoc, 0);
     LOG(Test, Info, "ImGUI Program");
+    glCheck();
 
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
     glGenBuffers(2, bufs);
     glBindBuffer(GL_ARRAY_BUFFER, bufs[0]);
-    glVertexAttribPointer(0, 2, GL_FLOAT,         false, sizeof(ImDrawVert), reinterpret_cast<void*>(IM_OFFSETOF(ImDrawVert, pos)));
-    glVertexAttribPointer(1, 2, GL_FLOAT,         false, sizeof(ImDrawVert), reinterpret_cast<void*>(IM_OFFSETOF(ImDrawVert, uv)));
-    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, true,  sizeof(ImDrawVert), reinterpret_cast<void*>(IM_OFFSETOF(ImDrawVert, col)));
+    glVertexAttribPointer(0, 2, GL_FLOAT, false, sizeof(ImDrawVert), reinterpret_cast<void*>(IM_OFFSETOF(ImDrawVert, pos)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(ImDrawVert), reinterpret_cast<void*>(IM_OFFSETOF(ImDrawVert, uv)));
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, true, sizeof(ImDrawVert), reinterpret_cast<void*>(IM_OFFSETOF(ImDrawVert, col)));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
@@ -1693,7 +2159,8 @@ void* renderMain(void* arg) {
     glCheck();
     LOG(Test, Info, "ImGUI VAO");
 
-    // ImGui init
+    // ImGui font texture
+    // ------------------------------------------------------------------------
     glGenTextures(1, &fontTexture);
     glBindTexture(GL_TEXTURE_2D, fontTexture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -1702,42 +2169,89 @@ void* renderMain(void* arg) {
     {
       u8* pixels;
       i32 width, height;
-      io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+      io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, pixels);
     }
     glCheck();
     io.Fonts->TexID = reinterpret_cast<ImTextureID>(static_cast<usize>(fontTexture));
     LOG(Test, Info, "ImGUI Texture");
 
-    // ImGui state
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(false);
 
+    // Asset & Components Test
+    // ------------------------------------------------------------------------
   #if BUILD_EDITOR
-    auto testMeshData = testMeshImport();
+    auto testMeshData = testMeshImport(&materials, &numMaterials, &skeleton, &animation);
     auto meshHeader = std::launder(reinterpret_cast<MeshHeader*>(testMeshData.data()));
-    auto indicesOffset = sizeof(MeshHeader);
-    auto indicesSize = meshHeader->numIndices * 2;
-    auto verticesOffset = indicesOffset + indicesSize;
-    auto verticesSize = meshHeader->numVertices * 6;
+
     glGenVertexArrays(1, &vaoTest);
     glBindVertexArray(vaoTest);
     glGenBuffers(1, &vboTest);
     glGenBuffers(1, &iboTest);
     glBindBuffer(GL_ARRAY_BUFFER, vboTest);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboTest);
+
+    subMeshesTest = new MeshHeader::SubMesh[meshHeader->subMeshCount];
+    subMeshesCountTest = meshHeader->subMeshCount;
+    auto subMeshesSize = sizeof(MeshHeader::SubMesh) * meshHeader->subMeshCount;
+    memcpy(subMeshesTest, testMeshData.data() + sizeof(MeshHeader), subMeshesSize);
+
+    auto indicesOffset = sizeof(MeshHeader) + subMeshesSize;
+    auto indicesSize = meshHeader->numIndices * 4;
+    auto verticesOffset = indicesOffset + indicesSize;
+    auto verticesSize = 0;
+
+    if (meshHeader->flags & MeshHeader::HasPositions) {
+      glEnableVertexAttribArray(0);
+      glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, nullptr);
+      verticesSize += meshHeader->numVertices * 12;
+    }
+    if (meshHeader->flags & MeshHeader::HasTangents) {
+      glEnableVertexAttribArray(1);
+      glEnableVertexAttribArray(2);
+    #if 0
+      glVertexAttribPointer(1, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+      verticesSize += meshHeader->numVertices * 12;
+    #endif
+      glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+      verticesSize += meshHeader->numVertices * 12;
+    }
+    /*else*/ if (meshHeader->flags & MeshHeader::HasNormals) {
+      glEnableVertexAttribArray(1);
+      glVertexAttribPointer(1, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+      verticesSize += meshHeader->numVertices * 12;
+    }
+    if (meshHeader->flags & MeshHeader::HasTexCoords) {
+      glEnableVertexAttribArray(3);
+      glVertexAttribPointer(3, 2, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+      verticesSize += meshHeader->numVertices * 8;
+    }
+    if (meshHeader->flags & MeshHeader::HasBones) {
+      glEnableVertexAttribArray(4);
+      glVertexAttribPointer(4, 4, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+      verticesSize += meshHeader->numVertices * 16;
+      glEnableVertexAttribArray(5);
+      glVertexAttribIPointer(5, 4, GL_UNSIGNED_BYTE, 0, reinterpret_cast<void*>(verticesSize));
+      verticesSize += meshHeader->numVertices * 4;
+    }
     glBufferData(GL_ARRAY_BUFFER, verticesSize, testMeshData.data() + verticesOffset, GL_STATIC_DRAW);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesSize, testMeshData.data() + indicesOffset, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_SHORT, true, 0, nullptr);
-    glEnableVertexAttribArray(0);
     glBindVertexArray(0);
+    glGenBuffers(1, &uboTest);
+    glGenBuffers(1, &uboBones);
     glCheck();
+
+    animState.layers = new AnimState::Layer[animation.numLayers];
+    animState.localJoints = new Mat4[skeleton.numBones];
+    animState.worldJoints = new Mat4[skeleton.numBones];
+    animState.finalJoints = new Mat4[skeleton.numBones];
+
+    memcpy(animState.localJoints, skeleton.boneTransforms, skeleton.numBones * sizeof(Mat4));
   #endif
   }
 
 #if GFX_PRESENT_THREAD
   while (true)
-#endif
+  #endif
   {
     r += 0.0001f;
     g += 0.00025f;
@@ -1746,20 +2260,20 @@ void* renderMain(void* arg) {
     if (g > 1) g = 0;
     if (b > 1) b = 0;
 
-    world.Step(1/60.f, velocityIterations, positionIterations);
+    world.Step(1 / 60.f, velocityIterations, positionIterations);
 
     auto& io{ ImGui::GetIO() };
-    io.DisplaySize = ImVec2{gl->width, gl->height};
-    io.DisplayFramebufferScale = ImVec2{gl->dpi, gl->dpi};
+    io.DisplaySize = ImVec2{ gl->width, gl->height };
+    io.DisplayFramebufferScale = ImVec2{ gl->dpi, gl->dpi };
 
     io.DeltaTime = gl->getDeltaTime();
-#if 0
+  #if 0
     io.DeltaTime = 0.016;
-#endif
+  #endif
 
-    #if PLATFORM_HTML5
+  #if PLATFORM_HTML5
     jank_imgui_setCursor(ImGui::GetMouseCursor());
-    #endif
+  #endif
 
     jank_imgui_newFrame();
     ImGui::NewFrame();
@@ -1777,77 +2291,287 @@ void* renderMain(void* arg) {
     // TODO check totalVtxCount
 
     auto offset{ drawData->DisplayPos };
-    auto scale { drawData->FramebufferScale };
-    auto width { static_cast<GLsizei>(drawData->DisplaySize.x * scale.x) };
+    auto scale{ drawData->FramebufferScale };
+    auto width{ static_cast<GLsizei>(drawData->DisplaySize.x * scale.x) };
     auto height{ static_cast<GLsizei>(drawData->DisplaySize.y * scale.y) };
 
-#if GFX_PRESENT_THREAD && (PLATFORM_ANDROID || PLATFORM_APPLE)
+  #if GFX_PRESENT_THREAD && (PLATFORM_ANDROID || PLATFORM_APPLE)
     gl->renderReady.wait();
-# if PLATFORM_ANDROID || PLATFORM_IPHONE
+  # if PLATFORM_ANDROID || PLATFORM_IPHONE
     gl->makeCurrent();
-# endif
-#endif
+  # endif
+  #endif
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(true);
+    glDepthFunc(GL_LESS);
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glClearColor(r, g, b, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
+
+    //glClearColor(r, g, b, 1);
+    glClearDepth(1);
+    glClear(GL_DEPTH_BUFFER_BIT);
     glCheck();
 
     glViewport(0, 0, width, height);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    //if (std::fmod(r * 50, 1) > .5)
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    rtm::matrix4x4f proj;
+    Mat4 proj;
     {
       auto fov = rtm::degrees(60.f).as_radians();
-      auto y = 1.f / std::tanf(fov * .5f);
-      auto x = y * gl->width / gl->height;
-      auto a = .001f / (100.f - .001f);
-      auto b = a * 100.f;
-      proj = rtm::matrix_set(rtm::vector_set(x, 0, 0, 0),
-                             rtm::vector_set(0, y, 0, 0),
-                             rtm::vector_set(0, 0, a, -1),
-                             rtm::vector_set(0, 0, b, 0));
+      auto ar = gl->width / gl->height;
+      auto f = 1000.f;
+      auto n = .01f;
+      auto r = n - f;
+      auto t = std::tanf(fov * .5f);
+      auto x = 1.f / (t * ar);
+      auto y = 1.f / t;
+      auto a = (-n - f) / r;
+      auto b = 2 * f * n / r;
+      proj.m4x4 = rtm::matrix_set(rtm::vector_set(x, 0, 0, 0),
+                                  rtm::vector_set(0, y, 0, 0),
+                                  rtm::vector_set(0, 0, a, 1),
+                                  rtm::vector_set(0, 0, b, 0));
     }
 
-    rtm::matrix4x4f view;
-    {
-      auto from = rtm::vector_set(std::sinf(r * 100) * 10, 4, std::cosf(r * 100) * 10, 0);
-      auto to = rtm::vector_set(0.f, 0, 0);
-      auto forward = rtm::vector_sub(from, to);
-      forward = rtm::vector_normalize3(forward, forward);
+    struct Buffers {
+      CameraBuffer camera;
+      MaterialBuffer material;
+      LightBuffer lights[2];
+    } buffers;
+
+    static_assert(offsetof(Buffers, lights) == 512);
+    static_assert(sizeof(Buffers) == 256 * 3);
+
+    buffers.camera.position = rtm::vector_set(0.f, 0.1f, -0.1f, 1.f);
+    //buffers.camera.exposure = std::sinf(r * 300) * 4 + 8;
+    buffers.camera.exposure = 1.0f;
+
+    //buffers.material.metallic = 0.05f;
+    //buffers.material.roughness = 0.05f;
+    buffers.material.refractiveIndex = rtm::float3f{ .05, .05, .05 };
+    buffers.material.metallic = 0.05f;
+    buffers.material.roughness = 0.95f;
+    //buffers.material.refractiveIndex = rtm::float3f{ .56f, .57f, .58f };
+    //buffers.material.refractiveIndex = rtm::float3f{ .95f, .64f, .54f };
+    //buffers.material.metallic = std::sinf(r * 50) * .5f + .5f;// 0.05f;
+    //buffers.material.roughness = std::sinf(g * 50) * .5f + .5f;//0.95f;
+    buffers.material.ao = 1.0f;
+    buffers.material.useNormalMap = std::fmod(r * 25, 1);
+
+    buffers.lights[0] = {
+      rtm::vector_set(std::sinf(r * 100) * 10, 0.1f, std::cosf(r * 100) * 10, 1.f),
+      rtm::vector_set(r * 25, g * 25, b * 25, 1.f)
+    };
+    auto intensity = std::sinf(r * 250) * 50 + 100;
+    buffers.lights[1] = {
+      rtm::vector_set(10, 1, -1, 1.f),
+      //rtm::vector_set(std::sinf(g * 100) * 10, 0.5f, std::cosf(g * 100) * 10, 1.f),
+      rtm::vector_set(intensity, intensity, intensity, 1.f)
+    };
+  #if 0
+    buffers.lights[2] = {
+      rtm::vector_set(-1, -1, -1, 1.f),
+      rtm::vector_set(.3f, .3f, .1f, 1.f)
+    };
+    buffers.lights[3] = {
+      rtm::vector_set(1, -1, -1, 1.f),
+      rtm::vector_set(.3f, .3f, .3f, 1.f)
+    };
+  #endif
+
+    glBindBuffer(GL_UNIFORM_BUFFER, uboTest);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(Buffers), nullptr, GL_STREAM_DRAW);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(Buffers), &buffers, GL_STREAM_DRAW);
+
+    animState.time += io.DeltaTime * animation.ticksPerSecond;
+    auto reset{ animState.time >= animation.duration };
+
+    animState.time = fmod(animState.time, animation.duration);
+
+    for (auto n{ 0 }; n < animation.numLayers; n++) {
+      auto const& layer{ animation.layers[n] };
+      auto& state{ animState.layers[n] };
+
+      auto nextRotationKey{ (state.rotationKey + 1) % layer.numRotationFrames };
+      auto nextPositionKey{ (state.positionKey + 1) % layer.numPositionFrames };
+      auto nextScaleKey   { (state.scaleKey    + 1) % layer.numScaleFrames    };
+
+      if (reset || animState.time >= layer.rotationKeys[nextRotationKey]) {
+        state.rotationKey = nextRotationKey;
+        nextRotationKey = (nextRotationKey + 1) % layer.numRotationFrames;
+      }
+
+      if (reset || animState.time >= layer.positionKeys[nextPositionKey]) {
+        state.positionKey = nextPositionKey;
+        nextPositionKey = (nextPositionKey + 1) % layer.numPositionFrames;
+      }
+
+      if (reset || animState.time >= layer.scaleKeys[nextScaleKey]) {
+        state.scaleKey = nextScaleKey;
+        nextScaleKey = (nextScaleKey + 1) % layer.numScaleFrames;
+      }
+
+      auto timeRotation{ layer.rotationKeys[state.rotationKey] };
+      auto timePosition{ layer.positionKeys[state.positionKey] };
+      auto timeScale   { layer.scaleKeys   [state.scaleKey]    };
+
+      auto deltaRotation{ layer.rotationKeys[nextRotationKey] - timeRotation + 0.000001 };
+      auto deltaPosition{ layer.positionKeys[nextPositionKey] - timePosition + 0.000001 };
+      auto deltaScale   { layer.scaleKeys   [nextScaleKey]    - timeScale    + 0.000001 };
+
+      auto factorRotation{ (animState.time - timeRotation) / deltaRotation };
+      auto factorPosition{ (animState.time - timePosition) / deltaPosition };
+      auto factorScale   { (animState.time - timeScale   ) / deltaScale    };
+
+      animState.localJoints[layer.boneIndex].m3x4 =
+        rtm::matrix_from_qvv(rtm::quat_lerp(layer.rotations[state.rotationKey],
+                                            layer.rotations[nextRotationKey],
+                                            factorRotation),
+                             rtm::vector_lerp(layer.positions[state.positionKey],
+                                              layer.positions[nextPositionKey],
+                                              factorPosition),
+                             rtm::vector_lerp(layer.scales[state.scaleKey],
+                                              layer.scales[nextScaleKey],
+                                              factorScale));
+    }
+
+    for (auto n = 0; n < skeleton.numBones; n++) {
+      auto parentId{ skeleton.boneParentIds[n] };
+      if (parentId != Skeleton::invalidBoneId) {
+        ASSERT(parentId < n);
+        animState.worldJoints[n].m3x4 = rtm::matrix_mul(animState.localJoints[n].m3x4,
+                                                        animState.worldJoints[parentId].m3x4);
+      }
+      else {
+        animState.worldJoints[n] = animState.localJoints[n];
+      }
+    }
+
+    for (auto n = 0; n < skeleton.numBones; n++) {
+      animState.finalJoints[n].m4x4 =
+        rtm::matrix_mul(skeleton.boneOffsets[n], animState.worldJoints[n].m4x4);
+    }
+
+    u32 boneSize = skeleton.numBones * sizeof(Mat4);
+
+    glBindBuffer(GL_UNIFORM_BUFFER, uboBones);
+    glBufferData(GL_UNIFORM_BUFFER, boneSize, nullptr, GL_STREAM_DRAW);
+    glBufferData(GL_UNIFORM_BUFFER, boneSize, animState.finalJoints, GL_STREAM_DRAW);
+
+    Mat4 view;
+    if (false) {
+      auto eye = rtm::vector_set(std::sinf(r * 100) * 50,
+                                 std::sinf(g * 100) * 25,
+                                 std::cosf(r * 100) * 50);
+      auto at = rtm::vector_set(0, 0.f, 0);
       auto up = rtm::vector_set(0, 1.f, 0);
-      auto right = rtm::vector_cross3(up, forward);
-      up = rtm::vector_cross3(forward, right);
 
-      view = rtm::matrix_set(right,
-                             up,
-                             forward,
-                             rtm::vector_set_w(from, 1));
-      view = rtm::matrix_inverse(view);
+      auto z = rtm::vector_sub(eye, at);
+      z = rtm::vector_normalize3(z, z);
+      auto x = rtm::vector_cross3(up, z);
+      //x = rtm::vector_normalize3(x, x);
+      auto y = rtm::vector_cross3(z, x);
+      //y = rtm::vector_cross3(y, y);
+
+      auto ee = eye;// rtm::vector_neg(eye);
+      auto xx = -rtm::vector_dot3(x, ee);
+      auto yy = -rtm::vector_dot3(y, ee);
+      auto zz = -rtm::vector_dot3(z, ee);
+      view.m4x4 = rtm::matrix_set(x, y, z,
+                                  rtm::vector_set(xx, yy, zz, 1.f)
+      );
+      view.m4x4 = rtm::matrix_inverse(view.m4x4);
+      //view = rtm::matrix_mul(view, rtm::matrix_from_translation(eye));
     }
+    view.m4x4 = rtm::matrix_identity();
+    view.m4x4.w_axis = buffers.camera.position;
+    view.m4x4 = rtm::matrix_inverse(view.m4x4);
 
-    auto viewProj = rtm::matrix_mul(*reinterpret_cast<rtm::matrix4x4f*>(&view), proj);
+    auto viewProj = rtm::matrix_mul(view.m4x4, proj.m4x4);
 
-    glUseProgram(triangleProg);
   #if BUILD_EDITOR
+    Mat4 model;
     {
-      auto model = rtm::matrix_from_translation(rtm::vector_set(0.f, 0.f, 0.f, 1.f));
-      auto mvp = rtm::matrix_mul(*reinterpret_cast<rtm::matrix4x4f*>(&model), viewProj);
-      glUniformMatrix4fv(mvpPos, 1, false, reinterpret_cast<float const*>(&mvp));
+      auto q = rtm::quat_from_axis_angle(rtm::vector_set(0, 1.f, 0),
+                                         rtm::radians(r * 20));
+      model.m3x4 = rtm::matrix_from_qvv(q,
+                                        rtm::vector_set(0.f, .05f, 0.f, 1.f),
+                                        //rtm::vector_set(0.f, .0f, 0.f, 1.f),
+                                        //rtm::vector_set(.001f, .001f, .001f)
+                                        rtm::vector_set(.0005f, .0005f, .0005f)
+                                        //rtm::vector_set(10, 10, 10.f)
+      );
+      Mat4 mvp;
+      mvp.m4x4 = rtm::matrix_mul(model.m4x4, viewProj);
+      glUseProgram(testProg);
       glBindVertexArray(vaoTest);
-      glDrawElements(GL_TRIANGLES, 84, GL_UNSIGNED_SHORT, nullptr);
+      glUniformMatrix4fv(0, 1, false, mvp.v);
+      glUniformMatrix4fv(1, 1, false, model.v);
+      glBindBufferRange(GL_UNIFORM_BUFFER, 0, uboTest, cameraOffset, sizeof(buffers.camera));
+      glBindBufferRange(GL_UNIFORM_BUFFER, 1, uboTest, materialOffset, sizeof(buffers.material));
+      glBindBufferRange(GL_UNIFORM_BUFFER, 2, uboTest, lightsOffset, sizeof(buffers.lights));
+      glBindBufferRange(GL_UNIFORM_BUFFER, 3, uboBones, 0, boneSize);
+      glActiveTexture(GL_TEXTURE0 + 2);
+      auto f = std::fmod(r * 10, 1);
+      glBindTexture(GL_TEXTURE_2D, f > 0.67 ? iblTex0 : f > 0.33 ? iblTex1 : iblTex2);
+      for (auto n{ 0 }; n < subMeshesCountTest; n++) {
+        auto& sm = subMeshesTest[n];
+        glActiveTexture(GL_TEXTURE0 + 1);
+        glBindTexture(GL_TEXTURE_2D, materials[sm.materialIndex].normal);
+        glActiveTexture(GL_TEXTURE0 + 0);
+        glBindTexture(GL_TEXTURE_2D, materials[sm.materialIndex].color);
+        glDrawElementsBaseVertex(GL_TRIANGLES, sm.indexCount, GL_UNSIGNED_INT,
+                                 reinterpret_cast<void const*>(sm.indexOffset),
+                                 sm.vertexStart);
+        glCheck();
+      }
     }
   #endif
 
-    auto pos = body->GetPosition();
-    auto model = rtm::matrix_from_translation(rtm::vector_set(pos.x, pos.y, 0.f, 1.f));
-    auto mvp = rtm::matrix_mul(*reinterpret_cast<rtm::matrix4x4f*>(&model), viewProj);
-    glUniformMatrix4fv(mvpPos, 1, false, reinterpret_cast<float const*>(&mvp));
-    //glUniformMatrix4fv(mvpPos, 1, false, &body->GetPosition().x);
+  #if 1
+    //auto pos = body->GetPosition();
+    //auto model = rtm::matrix_from_translation(rtm::vector_set(pos.x, pos.y, 0.f, 1.f));
+    glUseProgram(triangleProg);
     glBindVertexArray(vaoTriangle);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glCheck();
+    for (auto n{ 0 }; n < 2; n++) {
+      Mat4 localToWorld;
+      localToWorld.m3x4 = rtm::matrix_from_qvv(rtm::quat_identity(),
+                                        buffers.lights[n].position,
+                                        rtm::vector_set(0.5f, 0.5f, 0.5f));
+      Mat4 mvp;
+      mvp.m4x4 = rtm::matrix_mul(localToWorld.m4x4, viewProj);
+      glUniformMatrix4fv(mvpPos, 1, false, mvp.v);
+      glDrawArrays(GL_TRIANGLES, 0, 3);
+      glCheck();
+    }
+  #endif
 
+    auto skyboxView{ view };
+    skyboxView.m4x4.w_axis = rtm::vector_set(0, 0, 0, 1.f);
+    glDepthMask(false);
+    glUseProgram(skyboxProg);
+    glBindVertexArray(vaoGizmo);
+    glUniformMatrix4fv(0, 1, false, proj.v);
+    glUniformMatrix4fv(1, 1, false, skyboxView.v);
+    drawGizmo(cubeGizmo);
+    glDepthMask(true);
+
+  #if BUILD_EDITOR && 0
+    glClear(GL_DEPTH_BUFFER_BIT);
+    f32 color[3]{ .9f, 0.f, 0.f };
+    glUseProgram(progGizmo);
+    glBindVertexArray(vaoGizmo);
+    glUniform3fv(2, 1, color);
+    glUniformMatrix4fv(0, 1, false, proj.v);
+    drawBones(model, view, animState.worldJoints);
+    glCheck();
+  #endif
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(false);
     {
       auto l{ drawData->DisplayPos.x };
       auto r{ drawData->DisplaySize.x + l };
@@ -1860,7 +2584,6 @@ void* renderMain(void* arg) {
         { (r+l)/(l-r), (t+b)/(b-t),  0, 1 }
       };
       glUseProgram(prog);
-      glUniform1i(texLoc, 0);
       glUniformMatrix4fv(projLoc, 1, false, &proj[0][0]);
       glCheck();
     }
@@ -1935,7 +2658,7 @@ void* renderMain(void* arg) {
     }
 #endif
 
-    glDisable(GL_BLEND);
+    //glDisable(GL_BLEND);
     glDisable(GL_SCISSOR_TEST);
     glBindVertexArray(0);
     glUseProgram(0);

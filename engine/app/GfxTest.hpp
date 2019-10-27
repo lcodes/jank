@@ -102,9 +102,201 @@ void* renderMain(void* arg);
 
 #pragma pack(1)
 struct MeshHeader {
+  enum {
+    HasPositions = 1 << 0,
+    HasNormals = 1 << 1,
+    HasTangents = 1 << 2,
+    HasTexCoords = 1 << 3,
+    HasBones = 1 << 4
+  };
+  struct SubMesh {
+    u8 materialIndex;
+    u8 unused0;
+    u16 unused1;
+    u32 indexCount;
+    u32 indexOffset;
+    u32 vertexStart;
+  };
   u32 numIndices;
   u32 numVertices;
+  u16 flags;
+  u16 subMeshCount;
+  // submeshes...
   // indices data...
   // vertice data...
 };
 #pragma pack()
+
+#include "rtm/matrix4x4f.h"
+#include "rtm/quatf.h"
+#include "rtm/vector4f.h"
+#include <string>
+
+struct Skeleton {
+  static constexpr u8 invalidBoneId = UINT8_MAX;
+
+  std::string* boneNames;
+  rtm::matrix4x4f* boneOffsets;
+  rtm::matrix4x4f* boneTransforms;
+  u8* boneParentIds;
+  u8 numBones;
+};
+
+struct Animation {
+  enum class Behaviour : u8 {
+    Default,
+    Constant,
+    Linear,
+    Repeat
+  };
+  struct Layer {
+    f32* rotationKeys;
+    f32* positionKeys;
+    f32* scaleKeys;
+    rtm::quatf* rotations;
+    rtm::vector4f* positions; // TODO use vec3's instead?
+    rtm::vector4f* scales;
+    u32 numRotationFrames;
+    u32 numPositionFrames;
+    u32 numScaleFrames;
+    Behaviour statePre;
+    Behaviour statePost;
+    u8 boneIndex;
+  };
+
+  // Name
+  // Target Skeleton
+  f32 duration;
+  f32 ticksPerSecond;
+  Layer* layers;
+  u8 numLayers;
+};
+
+/**
+ * Describes how objects are rendered.
+ */
+struct MaterialDef {
+  // Shader implementation sources (& fallbacks / quality levels)
+  // Shader Pipeline Map (vertex type -> pass type)
+  // Texture Parameter Defs
+  // Uniform Parameter Defs
+};
+
+/**
+ * Parameter set for a MaterialDef.
+ */
+struct Material {
+  MaterialDef* def;
+  u32 color;
+  u32 normal;
+  // Textures
+  // Uniforms
+};
+
+/**
+ * Component used for CPU culling of RenderObjects by a Camera.
+ */
+struct Visibility {
+  // bounding box
+  // bounding sphere
+};
+
+/**
+ * Component holding shared data for all specialized render components.
+ */
+struct RenderObject {
+  Material* materials;
+  bool shadowed  : 1;
+  bool shadowing : 1;
+  bool useRProbe : 1;
+};
+
+// TODO
+// - static batching
+// - hierarchical LODs
+struct LODs {
+};
+
+class IndexBuffer {
+  u32 ibo;
+
+public:
+};
+
+class VertexBuffer {
+  u32 vbo;
+
+public:
+};
+
+struct VertexStream {
+  u32 vao;
+};
+
+template<typename T>
+class TrailingArray {
+  u32 count;
+  T data[0];
+};
+
+struct StaticMeshData {
+  struct SubMesh {
+    VertexStream stream;
+    u8 materialIndex;
+    u8 unused;
+    u16 unused2;
+    u32 indexCount;
+    u32 indexOffset;
+    u32 vertexStart;
+  };
+
+  IndexBuffer indices;
+  VertexBuffer positions;
+  VertexBuffer attributes;
+  TrailingArray<SubMesh> subMeshes;
+};
+
+struct StaticMeshAsset {
+  StaticMeshData* data;
+};
+
+struct SkinnedMeshData {
+  struct SubMesh {
+
+  };
+
+  u32 subMeshCount;
+  SubMesh subMeshes[0];
+};
+
+/**
+ * Renderer data for meshes whose geometry never changes.
+ */
+struct StaticMesh {
+  StaticMeshData* data;
+};
+
+/**
+ * Renderer data for meshes whose geometry is animated using a skeleton.
+ */
+struct SkinnedMesh {
+  SkinnedMeshData* data;
+  bool offscreenUpdate : 1;
+};
+
+// Particles
+// Lines
+// Trail
+
+// ENTITY ID
+// - LocalToWorld
+// - Visibility
+// - RenderObject
+// - StaticMesh
+//   - StaticMeshData
+//     - Index & Vertex buffers
+//     - SubMeshes
+//       - Vertex Stream  -> IBO/VBO offsets, size, stride -> VAO/Views
+//       - Material Index -> RenderObject.materials[index] -> Shader
+//       - Draw Call Params
+

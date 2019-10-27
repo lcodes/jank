@@ -233,6 +233,16 @@
 # define ARCH_WASM 0
 #endif
 
+#if ARCH_X86 || ARCH_X64
+# if !defined(__AVX__)
+#  error "AVX support is not enabled"
+# endif
+#elif ARCH_ARM || ARCH_ARM64
+# if !defined(__ARM_NEON)
+#  error "NEON support is not enabled"
+# endif
+#endif
+
 
 // Attributes
 // -----------------------------------------------------------------------------

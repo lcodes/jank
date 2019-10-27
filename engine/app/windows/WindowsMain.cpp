@@ -117,7 +117,7 @@ int WINAPI wWinMain(_In_     HINSTANCE instance,
 
   WindowsOpenGL gl;
   gl.width = 1920;
-  gl.height = 1024;
+  gl.height = 1080;
 
   // Create window
   WNDCLASSEXW wc{ sizeof(wc) };

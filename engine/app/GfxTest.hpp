@@ -132,6 +132,18 @@ struct MeshHeader {
 #include "rtm/vector4f.h"
 #include <string>
 
+enum class TextureType : u8 {
+  Base,
+  Normal,
+  Metallic,
+  Roughness,
+  AO,
+  Displacement,
+  Count,
+  Unknown = 0xFF,
+};
+constexpr auto textureTypeCount{ static_cast<u32>(TextureType::Count) };
+
 struct Skeleton {
   static constexpr u8 invalidBoneId = UINT8_MAX;
 
@@ -187,9 +199,7 @@ struct MaterialDef {
  */
 struct Material {
   MaterialDef* def;
-  u32 color;
-  u32 normal;
-  // Textures
+  u32 textures[static_cast<u32>(TextureType::Count)];
   // Uniforms
 };
 

@@ -82,8 +82,11 @@ void jank_imgui_setClipboardText(void*, char const*) {}
 #endif
 
 #if BUILD_EDITOR
-std::string testMeshImport(Material** materials, u32* numMaterials,
-                           Skeleton* skeleton, Animation* animation);
+std::string testMeshImport(char const* filename,
+                           Material** materials = nullptr,
+                           u32* numMaterials = nullptr,
+                           Skeleton* skeleton = nullptr,
+                           Animation* animation = nullptr);
 std::string testMeshImportSimple(char const* filename);
 u32 importTextureHDR(char const* filename);
 #endif
@@ -138,6 +141,7 @@ u32 importTextureHDR(char const* filename);
   GL(GETUNIFORMLOCATION, GetUniformLocation); \
   GL(LINKPROGRAM, LinkProgram); \
   GL(SHADERSOURCE, ShaderSource); \
+  GL(UNIFORM1F, Uniform1f); \
   GL(UNIFORM1I, Uniform1i); \
   GL(UNIFORM2FV, Uniform2fv); \
   GL(UNIFORM3FV, Uniform3fv); \
@@ -261,7 +265,7 @@ static bool isGLES;
 static std::string glslHeader;
 
 class ShaderBuilder {
-  char const* sources[2];
+  char const* sources[16];
   u32 numSources;
 
 public:
@@ -270,13 +274,14 @@ public:
   }
 
   void push(char const* source) {
-    ASSERT(numSources < 2);
+    ASSERT(numSources < _countof(sources));
     sources[numSources++] = source;
   }
 
   u32 compile(u32 stage) {
 #if BUILD_DEBUG
-    for (auto n{0}; n < numSources; n++) {
+    printf("================================================================================\n");
+    for (auto n{ 0 }; n < numSources; n++) {
       printf("%s", sources[n]);
     }
 #endif
@@ -288,9 +293,10 @@ public:
   }
 };
 
-u32 glBuildShader(u32 stage, char const* source) {
+template<typename ...N>
+static u32 glBuildShader(u32 stage, N... sources) {
   ShaderBuilder b;
-  b.push(source);
+  for (auto s : { sources... }) b.push(s);
   return b.compile(stage);
 }
 
@@ -905,6 +911,9 @@ static bool setupExtensionGL4(std::string_view ext) {
   TEST(ARB_texture_cube_map_array, { // 4.0
 
   })
+  TEST(ARB_texture_filter_anisotropic, { // 4.6
+
+  })
   TEST(ARB_texture_gather, { // 4.0
 
   })
@@ -987,9 +996,6 @@ static bool setupExtensionNonCore(std::string_view ext) {
   TEST(ARB_sparse_texture2, {})
   TEST(ARB_sparse_texture_clamp, {})
   TEST(ARB_texture_buffer_object_rgb32, {
-
-  })
-  TEST(ARB_texture_filter_anisotropic, {
 
   })
   TEST(ARB_texture_filter_minmax, {})
@@ -1383,8 +1389,71 @@ static void setupExtension(std::string_view ext) {
 // OpenGL + ImGui test
 // -----------------------------------------------------------------------------
 
+void testMeshLoad(char const* data, u32* vao, u32* vbo, u32* ibo,
+                  MeshHeader::SubMesh** subMeshes, u32* subMeshesCount)
+{
+  auto meshHeader = std::launder(reinterpret_cast<MeshHeader const*>(data));
+
+  glGenVertexArrays(1, vao);
+  glBindVertexArray(*vao);
+  glGenBuffers(1, vbo);
+  glGenBuffers(1, ibo);
+  glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *ibo);
+
+  *subMeshes = new MeshHeader::SubMesh[meshHeader->subMeshCount];
+  *subMeshesCount = meshHeader->subMeshCount;
+  auto const subMeshesSize = sizeof(MeshHeader::SubMesh) * meshHeader->subMeshCount;
+  memcpy(*subMeshes, data + sizeof(MeshHeader), subMeshesSize);
+
+  auto const indicesOffset = sizeof(MeshHeader) + subMeshesSize;
+  auto const indicesSize = meshHeader->numIndices * 4;
+  auto const verticesOffset = indicesOffset + indicesSize;
+  auto verticesSize = 0;
+
+  if (meshHeader->flags & MeshHeader::HasPositions) {
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, nullptr);
+    verticesSize += meshHeader->numVertices * 12;
+  }
+  if (meshHeader->flags & MeshHeader::HasNormals) {
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+    verticesSize += meshHeader->numVertices * 12;
+  }
+  if (meshHeader->flags & MeshHeader::HasTangents) {
+  #if 0
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+    verticesSize += meshHeader->numVertices * 12;
+  #endif
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+    verticesSize += meshHeader->numVertices * 12;
+  }
+  if (meshHeader->flags & MeshHeader::HasTexCoords) {
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 2, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+    verticesSize += meshHeader->numVertices * 8;
+  }
+  if (meshHeader->flags & MeshHeader::HasBones) {
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 4, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
+    verticesSize += meshHeader->numVertices * 16;
+    glEnableVertexAttribArray(5);
+    glVertexAttribIPointer(5, 4, GL_UNSIGNED_BYTE, 0, reinterpret_cast<void*>(verticesSize));
+    verticesSize += meshHeader->numVertices * 4;
+  }
+  glBufferData(GL_ARRAY_BUFFER, verticesSize, data + verticesOffset, GL_STATIC_DRAW);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesSize, data + indicesOffset, GL_STATIC_DRAW);
+  glBindVertexArray(0);
+  glCheck();
+}
+
 #if BUILD_EDITOR
-u32 loadImage(CMP_Texture const& tex, bool isNormal) {
+u32 importTexture(char const* filename, TextureType type);
+
+u32 loadImage(CMP_Texture const& tex, TextureType type) {
   u32 id;
   glGenTextures(1, &id);
   glBindTexture(GL_TEXTURE_2D, id);
@@ -1392,13 +1461,20 @@ u32 loadImage(CMP_Texture const& tex, bool isNormal) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, 16);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-if (isNormal)
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, tex.dwWidth, tex.dwHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, tex.pData);
-else
-  glCompressedTexImage2D(GL_TEXTURE_2D, 0,
-                         isNormal ? GL_COMPRESSED_RG_RGTC2 : GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
-                         tex.dwWidth, tex.dwHeight, 0, tex.dwDataSize, tex.pData);
+  switch (type) {
+  case TextureType::Base:
+    glCompressedTexImage2D(GL_TEXTURE_2D, 0,
+                           GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,
+                           tex.dwWidth, tex.dwHeight, 0, tex.dwDataSize, tex.pData);
+    break;
+  case TextureType::Normal:
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, tex.dwWidth, tex.dwHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, tex.pData);
+    break;
+  default:
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, tex.dwWidth, tex.dwHeight, 0, GL_RED, GL_UNSIGNED_BYTE, tex.pData);
+  }
 
   glCheck();
   return id;
@@ -1411,6 +1487,7 @@ u32 loadImageHDR(void const* data, u32 w, u32 h) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, 16);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, data);
   glCheck();
@@ -1450,15 +1527,20 @@ constexpr u32 cameraOffset   = 0;
 constexpr u32 materialOffset = cameraOffset + 256;
 constexpr u32 lightsOffset   = materialOffset + 256;
 
-static u32 iblTex0, iblTex1, iblTex2;
+static f32 targetExposure = 1;
+static f32 currentExposure = 1;
+
+constexpr u32 numIblTexs = 6;
+
+static u32 iblTex[numIblTexs];
 static u32 skyboxProg;
 
+static u32* testProgs;
 static u32 uboTest;
 static u32 uboBones;
 static u32 vaoTest;
 static u32 vboTest;
 static u32 iboTest;
-static u32 testProg;
 static u32 subMeshesCountTest;
 static MeshHeader::SubMesh* subMeshesTest;
 static u32 numMaterials;
@@ -1489,6 +1571,432 @@ struct AnimState {
 
 static AnimState animState;
 
+constexpr u32 numFloorMats = 6;
+static Material floorMat[numFloorMats];
+static u32 floorProg[numFloorMats];
+static u32 vaoFloor;
+static u32 vboFloor;
+static u32 iboFloor;
+static MeshHeader::SubMesh* floorSubMeshes;
+static u32 floorSubMeshesCount;
+
+constexpr u32 shadowSize = 4096;
+
+// Vertex Locations:
+// - 0 position
+// - 1 normal
+// - 2 tangent
+// - 3 uv
+// - 4 bone weights
+// - 5 bone indices
+// Uniform Locations:
+// - 0 localToClip
+// - 1 localToWorld
+// - 2 baseTex
+// - 3 normalTex
+// - 4 metallicTex
+// - 5 roughnessTex
+// - 6 aoTex
+// - 7 displacementTex
+// - 8 reflection (TODO radiance/irradiance IBL, cubemaps)
+// Uniform Bindings:
+// - 0 camera
+// - 1 material
+// - 2 lights
+// - 3 skeleton joints
+
+constexpr auto vertexMeshSource =
+"struct MeshVertexParams {\n"
+"  vec4 localPosition;\n"
+"  mat3 localToWorldRotation;\n"
+"};\n";
+
+constexpr auto staticVertexSource =
+"void setupVertex(out MeshVertexParams p) {\n"
+"  p.localPosition = vec4(vertexPosition, 1);\n"
+"  p.localToWorldRotation = mat3(localToWorld);\n"
+"}\n";
+
+constexpr auto skinnedVertexSource =
+"layout (location = 4) in vec4 vertexBoneWeights;\n"
+"layout (location = 5) in ivec4 vertexBoneIndices;\n"
+"layout (binding = 3) uniform Skeleton {\n"
+"  mat4 bones[256];\n"
+"};\n"
+"void setupVertex(out MeshVertexParams p) {\n"
+"  mat4 boneTransform =\n"
+"    bones[vertexBoneIndices[0]] * vertexBoneWeights[0] +\n"
+"    bones[vertexBoneIndices[1]] * vertexBoneWeights[1] +\n"
+"    bones[vertexBoneIndices[2]] * vertexBoneWeights[2] +\n"
+"    bones[vertexBoneIndices[3]] * vertexBoneWeights[3];\n"
+"  p.localPosition = boneTransform * vec4(vertexPosition, 1.0);\n"
+"  p.localToWorldRotation = mat3(boneTransform) * mat3(localToWorld);\n"
+" }\n";
+
+auto sphericalUVSource =
+"vec2 sphericalUV(vec3 v) {\n"
+"  vec2 uv = vec2(atan(v.z, v.x), -asin(v.y));\n"
+"  uv *= vec2(0.1591, 0.3183);\n"
+"  uv += 0.5;\n"
+"  return uv;\n"
+"}\n";
+
+auto tonemapUncharted2Source =
+"vec3 tonemapUncharted2(vec3 x) {\n"
+"  const float A = 0.15;\n"
+"  const float B = 0.50;\n"
+"  const float C = 0.10;\n"
+"  const float D = 0.20;\n"
+"  const float E = 0.02;\n"
+"  const float F = 0.30;\n"
+"  return ((x * (x * A + B * C) + D * E) / (x * (x * A + B) + D * F)) - E / F;"
+"}\n"
+"vec4 tonemapAndGammaCorrect(vec3 color, float exposure) {\n"
+"  color = tonemapUncharted2(color * exposure * 16) * (1.0 / tonemapUncharted2(vec3(11.2)));\n"
+"  color = pow(color, vec3(1.0/2.2));\n"
+"  return vec4(color, 1);\n"
+"}\n";
+
+constexpr char const* texVertexSources[]{
+  // Base
+  "",
+  // Normal
+  "layout (location = 1) in vec3 vertexTangent0;\n"
+  "layout (location = 2) in vec3 vertexTangent1;\n"
+  "out vec3 worldTangent0;\n"
+  "out vec3 worldTangent1;\n"
+  "void setupNormal(MeshVertexParams p) {\n"
+  "  worldTangent0 = p.localToWorldRotation * vertexTangent0;\n"
+  "  worldTangent1 = p.localToWorldRotation * vertexTangent1;\n"
+  "}\n",
+  // Metallic
+  "",
+  // Roughness
+  "",
+  // AO
+  "",
+  // Displacement
+  ""
+};
+
+constexpr char const* f32VertexSources[]{
+  // Base
+  "",
+  // Normal
+  "layout (location = 1) in vec3 vertexNormal;\n"
+  "out vec3 worldNormal;\n"
+  "void setupNormal(MeshVertexParams p) {\n"
+  "  worldNormal = p.localToWorldRotation * vertexNormal;\n"
+  "}\n",
+  // Metallic
+  "",
+  // Roughness
+  "",
+  // AO
+  "",
+  // Displacement
+  ""
+};
+
+constexpr char const* texFragmentSources[]{
+  // Base
+  "layout (location = 2) uniform sampler2D baseColorTex;\n"
+  "vec3 getBaseColor() { return texture2D(baseColorTex, uv).rgb; }\n",
+  // Normal
+  "in vec3 worldTangent0;\n"
+  "in vec3 worldTangent1;\n"
+  "layout (location = 3) uniform sampler2D normalTex;\n"
+  "vec3 getNormal() {\n"
+  "  vec3 t0 = normalize(worldTangent0);\n"
+  "  vec3 t1 = normalize(worldTangent1 - dot(worldTangent1, t0) * t0);\n"
+  "  vec3 t2 = cross(t0, t1);\n"
+  "  mat3 tbn = mat3(t1, t2, t0);\n"
+//"  vec3 nm = vec3(texture2D(normalTex, uv).rg * 2.0 - 1.0, 0);\n"
+//"  nm.z = sqrt(1.0 - dot(nm.xy, nm.xy));\n"
+  "  vec3 nm = texture2D(normalTex, uv).rgb;\n"
+  "  nm = nm * 2.0 - 1.0;\n"
+  "  return tbn * nm;\n"
+  "}\n",
+  // Metallic
+  "layout (location = 4) uniform sampler2D metallicTex;\n"
+  "float getMetallic() { return texture2D(metallicTex, uv).r; }\n",
+  // Roughness
+  "layout (location = 5) uniform sampler2D roughnessTex;\n"
+  "float getRoughness() { return texture2D(roughnessTex, uv).r; }\n",
+  // AO
+  "layout (location = 6) uniform sampler2D aoTex;\n"
+  "float getAO() { return texture2D(aoTex, uv).r; }\n",
+  // Displacement
+  ""
+};
+
+constexpr char const* f32FragmentSources[]{
+  // Base
+  "float getBaseColor() { return material.baseColor; }\n",
+  // Normal
+  "in vec3 worldNormal;\n"
+  "vec3 getNormal() { return worldNormal; }\n",
+  // Metallic
+  "float getMetallic() { return material.metallic; }\n",
+  // Roughness
+  "float getRoughness() { return material.roughness; }\n",
+  // AO
+  "float getAO() { return material.ao; }\n",
+  // Displacement
+  ""
+};
+
+constexpr auto testHullSource =
+"layout (vertices = 3) out;\n"
+"in vec3 worldPosition[];\n"
+"in vec3 worldTangent0[];\n"
+"in vec3 worldTangent1[];\n"
+"in vec2 uv[];\n"
+"out vec3 worldPositionTess[];\n"
+"out vec3 worldTangent0Tess[];\n"
+"out vec3 worldTangent1Tess[];\n"
+"out vec2 uvTess[];\n"
+"float getTessLevel(float distance0, float distance1) {\n"
+"  float avg = (distance0 + distance1) * 0.5;\n"
+"  if (avg <= 2.0) return 15.0;\n"
+"  if (avg <= 5.0) return 10.0;\n"
+"  if (avg <= 10.0) return 5.0;\n"
+"  return 2.0;\n"
+"}\n"
+"void main() {\n"
+"  worldPositionTess[gl_InvocationID] = worldPosition[gl_InvocationID];\n"
+"  worldTangent0Tess[gl_InvocationID] = worldTangent0[gl_InvocationID];\n"
+"  worldTangent1Tess[gl_InvocationID] = worldTangent1[gl_InvocationID];\n"
+"  uvTess[gl_InvocationID] = uv[gl_InvocationID];\n"
+"  float dist0 = distance(camera.position, worldPositionTess[0]);\n"
+"  float dist1 = distance(camera.position, worldPositionTess[1]);\n"
+"  float dist2 = distance(camera.position, worldPositionTess[2]);\n"
+"  gl_TessLevelOuter[0] = getTessLevel(dist1, dist2);\n"
+"  gl_TessLevelOuter[1] = getTessLevel(dist2, dist0);\n"
+"  gl_TessLevelOuter[2] = getTessLevel(dist0, dist1);\n"
+"  gl_TessLevelInner[0] = gl_TessLevelOuter[2];\n"
+"}\n";
+
+// http://www.richardssoftware.net/2013/09/bump-and-displacement-mapping-with.html
+constexpr auto testDomainSource =
+"layout (triangles, fractional_odd_spacing, ccw) in;\n"
+"in vec3 worldPositionTess[];\n"
+"in vec3 worldTangent0Tess[];\n"
+"in vec3 worldTangent1Tess[];\n"
+"in vec2 uvTess[];\n"
+"out vec3 worldPosition;\n"
+"out vec3 worldTangent0;\n"
+"out vec3 worldTangent1;\n"
+"out vec2 uv;\n"
+"layout (location = 7) uniform sampler2D dispTex;\n" // TODO mipmap
+//"layout (location = 9) uniform float dispFactor;\n"
+"const float dispFactor = 0.005;\n"
+"layout (location = 0) uniform mat4 localToClip;\n" // TODO works for now because floor model matrix is identity!
+"vec2 interpolate2D(vec2 v0, vec2 v1, vec2 v2) {\n"
+"  return vec2(gl_TessCoord.x) * v0 + vec2(gl_TessCoord.y) * v1 + vec2(gl_TessCoord.z) * v2;\n"
+"}\n"
+"vec3 interpolate3D(vec3 v0, vec3 v1, vec3 v2) {\n"
+"  return vec3(gl_TessCoord.x) * v0 + vec3(gl_TessCoord.y) * v1 + vec3(gl_TessCoord.z) * v2;\n"
+"}\n"
+"void main() {\n"
+"  worldPosition = interpolate3D(worldPositionTess[0], worldPositionTess[1], worldPositionTess[2]);\n"
+"  worldTangent0 = normalize(interpolate3D(worldTangent0Tess[0], worldTangent0Tess[1], worldTangent0Tess[2]));\n"
+"  worldTangent1 = interpolate3D(worldTangent1Tess[0], worldTangent1Tess[1], worldTangent1Tess[2]);\n"
+"  uv = interpolate2D(uvTess[0], uvTess[1], uvTess[2]);\n"
+"  float disp = texture2D(dispTex, uv).x;\n"
+"  worldPosition += worldTangent0 * (disp - 1.0) * dispFactor;\n"
+"  gl_Position = localToClip * vec4(worldPosition, 1.0);\n"
+"}\n";
+
+constexpr auto testVertexSource0 =
+"layout (location = 0) in vec3 vertexPosition;\n"
+"layout (location = 3) in vec2 vertexUV;\n"
+"layout (location = 0) uniform mat4 localToClip;\n"
+"layout (location = 1) uniform mat4 localToWorld;\n"
+"out vec3 worldPosition;\n"
+"out vec2 uv;\n";
+constexpr auto testVertexSource1 =
+"void main() {\n"
+"  MeshVertexParams p;\n"
+"  setupVertex(p);\n"
+"  setupNormal(p);\n"
+"  worldPosition = (localToWorld * p.localPosition).xyz;\n"
+"  gl_Position = localToClip * p.localPosition;\n"
+"  uv = vertexUV;\n"
+"}\n";
+
+constexpr auto cameraBufferSource =
+"layout (binding = 0, std140) uniform Camera {\n"
+"  vec3 position;\n"
+"  float padding0;\n"
+"  float exposure;\n"
+"} camera;\n";
+
+constexpr auto testFragmentSource0 =
+"const float PI = 3.1415926535897932384626433832795;\n"
+"layout (location = 0) out vec4 fragColor;\n"
+"in vec3 worldPosition;\n"
+"in vec2 uv;\n"
+"layout (location = 8) uniform sampler2D iblTex;\n"
+"layout (binding = 1, std140) uniform Material {\n"
+"  float metallic;\n"
+"  float roughness;\n"
+"  float ao;\n"
+"  float useNormalMap;\n"
+"  vec3  refractiveIndex;\n"
+"} material;\n"
+"struct LightData {\n"
+"  vec3 position;\n"
+"  float padding0;\n"
+"  vec3 color;\n"
+"  float padding1;\n"
+"};\n"
+"layout (binding = 2, std140) uniform Light {\n"
+" LightData lights[2];\n"
+"};\n"
+"vec3 fresnelSchlick(float cosTheta, vec3 f0) {\n"
+"  return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);\n"
+"}\n"
+"float distributionGGX(vec3 n, vec3 h, float roughness) {\n"
+"  float ndoth = max(dot(n, h), 0.0);\n"
+"  float a     = roughness * roughness;\n"
+"  float a2    = a * a;\n"
+"  float d     = ndoth * ndoth * (a2 - 1.0) + 1.0;\n"
+"  return a2 / max(PI * d * d, 0.001);\n"
+"}\n"
+"float geometrySchlickGGX(float ndotv, float roughness) {\n"
+"  float r = roughness + 1.0;\n"
+"  float k = (r * r) / 8.0;\n"
+"  return ndotv / (ndotv * (1.0 - k) + k);\n"
+"}\n"
+"float geometrySmith(float ndotl, float ndotv, float roughness) {\n"
+"  return geometrySchlickGGX(ndotl, roughness) * geometrySchlickGGX(ndotv, roughness);\n"
+"}\n";
+constexpr auto testFragmentSource1 =
+"void main() {\n"
+"  vec3 albedo = getBaseColor();\n"
+"  vec3 n = normalize(getNormal());\n"
+"  vec3 v = normalize(camera.position - worldPosition);\n"
+"  float ndotv = max(dot(n, v), 0.0);\n"
+"  float metallic = getMetallic();\n"
+"  float roughness = getRoughness();\n"
+"  vec3 f0 = mix(material.refractiveIndex, albedo, metallic);\n"
+"  vec3 lo = vec3(0.0);\n"
+"  float oneMinusMetallic = 1.0 - metallic;\n"
+"  for (int i = 0; i < 2; i++) {\n"
+"    vec3 light = lights[i].position - worldPosition;\n"
+"    vec3 l = normalize(light);\n" // radiance
+"    vec3 h = normalize(v + l);\n"
+"    float distance = length(light);\n"
+"    float attenuation = 1.0 / (distance * distance);\n"
+"    vec3 radiance = lights[i].color * attenuation;\n"
+"    float ndf = distributionGGX(n, h, roughness);\n" // cook-torrance
+"    float ndotl = max(dot(n, l), 0.0);\n"
+"    float g = geometrySmith(ndotl, ndotv, roughness);\n"
+"    vec3 f = fresnelSchlick(max(dot(h, v), 0.0), f0);\n"
+"    float d = 4 * ndotl * ndotv;\n"
+"    vec3 specular = (ndf * g * f) / max(d, 0.001);\n"
+"    vec3 kd = (vec3(1.0) - f) * oneMinusMetallic;\n"
+"    lo += (kd * albedo / PI + specular) * radiance * ndotl;\n"
+"  }\n"
+"  vec3 kd = (vec3(1.0) - fresnelSchlick(ndotv, f0)) * oneMinusMetallic;\n"
+"  vec3 irradiance = texture(iblTex, sphericalUV(n)).rgb * 0.05;\n"
+"  vec3 diffuse = irradiance * albedo;\n"
+"  vec3 ambient = kd * diffuse * getAO();\n"
+"  vec3 color = ambient + lo;\n"
+"  fragColor = tonemapAndGammaCorrect(color, camera.exposure);\n"
+"}\n";
+
+static u32 shaderMap[1 << 10];
+
+static u32 getShader(Material const& material, bool skinned, bool displaced, bool shadow) {
+  u32 id = 0;
+  for (auto tex{ 0 }; tex < textureTypeCount; tex++) {
+    if (material.textures[tex] != 0) {
+      id |= 1 << tex;
+    }
+  }
+
+  if (skinned) id |= 1 << (textureTypeCount + 0);
+  if (shadow)  id |= 1 << (textureTypeCount + 1);
+
+  if (shaderMap[id] == 0) {
+    auto prog = glCreateProgram();
+    ShaderBuilder vert;
+    ShaderBuilder frag;
+
+    if (shadow) {
+      ASSERT(0, "TODO");
+      //vert.push(shadowVertex0);
+    }
+    else {
+      vert.push(testVertexSource0);
+      frag.push(testFragmentSource0);
+    }
+
+    vert.push(vertexMeshSource);
+    vert.push(skinned ? skinnedVertexSource : staticVertexSource);
+    frag.push(sphericalUVSource);
+    frag.push(tonemapUncharted2Source);
+    frag.push(cameraBufferSource);
+
+    for (auto tex{ 0 }; tex < textureTypeCount; tex++) {
+      if (material.textures[tex] != 0) {
+        vert.push(texVertexSources[tex]);
+        frag.push(texFragmentSources[tex]);
+      }
+      else {
+        vert.push(f32VertexSources[tex]);
+        frag.push(f32FragmentSources[tex]);
+      }
+    }
+
+    if (shadow) {
+      ASSERT(0, "TODO");
+    }
+    else {
+      vert.push(testVertexSource1);
+      frag.push(testFragmentSource1);
+    }
+
+    glAttachShader(prog, vert.compile(GL_VERTEX_SHADER));
+    glAttachShader(prog, frag.compile(GL_FRAGMENT_SHADER));
+
+    if (displaced) {
+      ShaderBuilder hull;
+      ShaderBuilder domain;
+
+      hull.push(cameraBufferSource);
+      hull.push(testHullSource);
+      domain.push(testDomainSource);
+
+      glAttachShader(prog, hull.compile(GL_TESS_CONTROL_SHADER));
+      glAttachShader(prog, domain.compile(GL_TESS_EVALUATION_SHADER));
+    }
+
+    glLinkProgram(prog);
+    glCheckProgram(prog);
+    glUseProgram(prog);
+    glCheck();
+
+    for (auto tex{ 0 }; tex < textureTypeCount; tex++) {
+      if (material.textures[tex] != 0) {
+        glUniform1i(tex + 2, tex);
+        glCheck();
+      }
+    }
+    glUniform1i(8, 6);
+    glCheck();
+
+    shaderMap[id] = prog;
+  }
+  return shaderMap[id];
+}
+
+static u32 fboShadow;
+static u32 texShadow;
+static u32 progShadow;
+
 constexpr i32 velocityIterations = 6;
 constexpr i32 positionIterations = 2;
 
@@ -1511,6 +2019,30 @@ static Gizmo boneGizmo;
 static Gizmo sphereGizmo;
 static Gizmo cubeGizmo;
 #endif
+
+static u32 currentShader;
+
+static void drawSubMesh(MeshHeader::SubMesh const& sm, Material const& material,
+                        u32 shader, Mat4 const& mvp, Mat4 const& model, bool patches = false)
+{
+  if (currentShader != shader) {
+    glUseProgram(shader);
+    glUniformMatrix4fv(0, 1, false, mvp.v);
+    glUniformMatrix4fv(1, 1, false, model.v);
+  }
+
+  for (auto tex{ 0 }; tex < textureTypeCount; tex++) {
+    if (material.textures[tex] != 0) {
+      glActiveTexture(GL_TEXTURE0 + tex);
+      glBindTexture(GL_TEXTURE_2D, material.textures[tex]);
+    }
+  }
+
+  glDrawElementsBaseVertex(patches ? GL_PATCHES : GL_TRIANGLES,
+                           sm.indexCount, GL_UNSIGNED_INT,
+                           reinterpret_cast<void const*>(sm.indexOffset),
+                           sm.vertexStart);
+}
 
 static void drawGizmo(Gizmo const& gizmo) {
   glDrawElementsBaseVertex(GL_TRIANGLES, gizmo.indexCount, GL_UNSIGNED_INT,
@@ -1791,36 +2323,50 @@ void* renderMain(void* arg) {
     mvpPos = glGetUniformLocation(triangleProg, "mvp");
     LOG(Test, Info, "Triangle Program");
 
+    // Shadow Map
+    // ------------------------------------------------------------------------
+
+    auto shadowVertexSource =
+      "layout (location = 0) in vec3 vertexPosition;\n"
+      "layout (location = 0) uniform mat4 worldToLight;\n"
+      "layout (location = 1) uniform mat4 localToWorld;\n"
+      "void main() {\n"
+      "  gl_Position = worldToLight * localToWorld * vec4(vertexPosition, 1);\n"
+      "}\n";
+
+    auto shadowVert{ glBuildShader(GL_VERTEX_SHADER, shadowVertexSource) };
+
+    progShadow = glCreateProgram();
+    glAttachShader(progShadow, shadowVert);
+    glLinkProgram(progShadow);
+    glCheckProgram(progShadow);
+
+    glGenTextures(1, &texShadow);
+    glBindTexture(GL_TEXTURE_2D, texShadow);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowSize, shadowSize,
+                 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    glGenFramebuffers(1, &fboShadow);
+    glBindFramebuffer(GL_FRAMEBUFFER, fboShadow);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, texShadow, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glCheckFramebuffer();
+    glCheck();
+
+
     // IBL
     // ------------------------------------------------------------------------
 
-  #define SPHERICAL_UV_SOURCE \
-      "vec2 sphericalUV(vec3 v) {\n" \
-      "  vec2 uv = vec2(atan(v.z, v.x), -asin(v.y));\n" \
-      "  uv *= vec2(0.1591, 0.3183);\n" \
-      "  uv += 0.5;\n" \
-      "  return uv;\n" \
-      "}"
-
-  #define TONEMAP_UNCHARTED_2 \
-      "vec3 tonemapUncharted2(vec3 x) {\n" \
-      "  const float A = 0.15;\n" \
-      "  const float B = 0.50;\n" \
-      "  const float C = 0.10;\n" \
-      "  const float D = 0.20;\n" \
-      "  const float E = 0.02;\n" \
-      "  const float F = 0.30;\n" \
-      "  return ((x * (x * A + B * C) + D * E) / (x * (x * A + B) + D * F)) - E / F;" \
-      "}\n" \
-      "vec4 tonemapAndGammaCorrect(vec3 color, float exposure) {\n" \
-      "  color = tonemapUncharted2(color * exposure) * (1.0 / tonemapUncharted2(vec3(11.2)));\n" \
-      "  color = pow(color, vec3(1.0/2.2));\n" \
-      "  return vec4(color, 1);\n" \
-      "}\n"
-
-    iblTex0 = importTextureHDR("../data/hdri/entrance_hall_2k.hdr");
-    iblTex1 = importTextureHDR("../data/hdri/satara_night_2k.hdr");
-    iblTex2 = importTextureHDR("../data/hdri/rooitou_park_2k.hdr");
+    if constexpr (numIblTexs >= 1) iblTex[0] = importTextureHDR("../data/hdri/entrance_hall_2k.hdr");
+    if constexpr (numIblTexs >= 2) iblTex[1] = importTextureHDR("../data/hdri/satara_night_2k.hdr");
+    if constexpr (numIblTexs >= 3) iblTex[2] = importTextureHDR("../data/hdri/rooitou_park_2k.hdr");
+    if constexpr (numIblTexs >= 4) iblTex[3] = importTextureHDR("../data/hdri/carpentry_shop_02_2k.hdr");
+    if constexpr (numIblTexs >= 5) iblTex[4] = importTextureHDR("../data/hdri/old_tree_in_city_park_2k.hdr");
+    if constexpr (numIblTexs >= 6) iblTex[5] = importTextureHDR("../data/hdri/the_sky_is_on_fire_2k.hdr");
 
     auto skyboxVertexSource =
       "layout (location = 0) in vec3 vertexPosition;\n"
@@ -1832,19 +2378,23 @@ void* renderMain(void* arg) {
       "  gl_Position = (localToView * viewToClip) * vec4(vertexPosition, 1.0);\n"
       "}\n";
 
-    auto skyboxFragmentSource =
+    auto skyboxFragmentSource0 =
       "in vec3 localPosition;\n"
       "layout (location = 0) out vec4 fragColor;\n"
       "layout (location = 2) uniform sampler2D iblTex;\n"
-      TONEMAP_UNCHARTED_2
-      SPHERICAL_UV_SOURCE
+      "layout (location = 3) uniform float exposure;\n";
+    auto skyboxFragmentSource1 =
       "void main() {\n"
       "  vec3 color = texture2D(iblTex, sphericalUV(localPosition)).rgb;\n"
-      "  fragColor = tonemapAndGammaCorrect(color, 1.0);\n"
+      "  fragColor = tonemapAndGammaCorrect(color, exposure);\n"
       "}\n";
 
     auto skyboxVert{ glBuildShader(GL_VERTEX_SHADER, skyboxVertexSource) };
-    auto skyboxFrag{ glBuildShader(GL_FRAGMENT_SHADER, skyboxFragmentSource) };
+    auto skyboxFrag{ glBuildShader(GL_FRAGMENT_SHADER,
+                                   skyboxFragmentSource0,
+                                   sphericalUVSource,
+                                   tonemapUncharted2Source,
+                                   skyboxFragmentSource1) };
 
     skyboxProg = glCreateProgram();
     glAttachShader(skyboxProg, skyboxVert);
@@ -1852,154 +2402,69 @@ void* renderMain(void* arg) {
     glLinkProgram(skyboxProg);
     glCheckProgram(skyboxProg);
     glUseProgram(skyboxProg);
-    glUniform1i(2, 2);
+    glUniform1i(2, 6);
     glCheck();
 
-
-    // Test Model
+    // Floor
     // ------------------------------------------------------------------------
 
-    auto testVertexSource =
-      "layout (location = 0) in vec3 vertexPosition;\n"
-      //"layout (location = 1) in vec3 vertexNormal;\n"
-      "layout (location = 1) in vec3 vertexTangent0;\n"
-      "layout (location = 2) in vec3 vertexTangent1;\n"
-      "layout (location = 3) in vec2 vertexUV;\n"
-      "layout (location = 4) in vec4 vertexBoneWeights;\n"
-      "layout (location = 5) in ivec4 vertexBoneIndices;\n"
-      "layout (location = 0) uniform mat4 localToClip;\n"
-      "layout (location = 1) uniform mat4 localToWorld;\n"
-      "layout (binding = 3) uniform Skeleton {\n"
-      "  mat4 bones[256];\n"
-      "};\n"
-      "out vec3 worldPosition;\n"
-      //"out vec3 worldNormal;\n"
-      "out vec3 worldTangent0;\n"
-      "out vec3 worldTangent1;\n"
-      "out vec2 uv;\n"
-      "void main() {\n"
-      "  mat4 boneTransform =\n"
-      "    bones[vertexBoneIndices[0]] * vertexBoneWeights[0] +\n"
-      "    bones[vertexBoneIndices[1]] * vertexBoneWeights[1] +\n"
-      "    bones[vertexBoneIndices[2]] * vertexBoneWeights[2] +\n"
-      "    bones[vertexBoneIndices[3]] * vertexBoneWeights[3];\n"
-      "  vec4 localPosition = boneTransform * vec4(vertexPosition, 1.0);\n"
-      "  gl_Position = localToClip * localPosition;\n"
-      "  worldPosition = (localToWorld * localPosition).xyz;\n"
-      //"  worldNormal = mat3(localToWorld) * vertexNormal;\n"
-      "  mat3 boneToWorld = mat3(boneTransform) * mat3(localToWorld);\n"
-      "  worldTangent0 = boneToWorld * vertexTangent0;\n"
-      "  worldTangent1 = boneToWorld * vertexTangent1;\n"
-      "  uv = vertexUV;\n"
-      "}\n";
+    {
+      auto planeData = testMeshImport("../data/editor/gizmo/plane.obj");
+      testMeshLoad(planeData.data(), &vaoFloor, &vboFloor, &iboFloor,
+                   &floorSubMeshes, &floorSubMeshesCount);
 
-    auto testFragmentSource =
-      "const float PI = 3.1415926535897932384626433832795;\n"
-      "layout (location = 0) out vec4 fragColor;\n"
-      "in vec3 worldPosition;\n"
-      //"in vec3 worldNormal;\n"
-      "in vec3 worldTangent0;\n"
-      "in vec3 worldTangent1;\n"
-      "in vec2 uv;\n"
-      "layout (location = 2) uniform sampler2D baseTex;\n"
-      "layout (location = 3) uniform sampler2D normalTex;\n"
-      "layout (location = 4) uniform sampler2D iblTex;\n"
-      "layout (binding = 0, std140) uniform Camera {\n"
-      "  vec3 position;\n"
-      "  float padding0;\n"
-      "  float exposure;\n"
-      "} camera;\n"
-      "layout (binding = 1, std140) uniform Material {\n"
-      "  float metallic;\n"
-      "  float roughness;\n"
-      "  float ao;\n"
-      "  float useNormalMap;\n"
-      "  vec3  refractiveIndex;\n"
-      "} material;\n"
-      "struct LightData {\n"
-      "  vec3 position;\n"
-      "  float padding0;\n"
-      "  vec3 color;\n"
-      "  float padding1;\n"
-      "};\n"
-      "layout (binding = 2, std140) uniform Light {\n"
-      " LightData lights[2];\n"
-      "};\n"
-      "vec3 fresnelSchlick(float cosTheta, vec3 f0) {\n"
-      "  return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);\n"
-      "}\n"
-      "float distributionGGX(vec3 n, vec3 h, float roughness) {\n"
-      "  float ndoth = max(dot(n, h), 0.0);\n"
-      "  float a     = roughness * roughness;\n"
-      "  float a2    = a * a;\n"
-      "  float d     = ndoth * ndoth * (a2 - 1.0) + 1.0;\n"
-      "  return a2 / max(PI * d * d, 0.001);\n"
-      "}\n"
-      "float geometrySchlickGGX(float ndotv, float roughness) {\n"
-      "  float r = roughness + 1.0;\n"
-      "  float k = (r * r) / 8.0;\n"
-      "  return ndotv / (ndotv * (1.0 - k) + k);\n"
-      "}\n"
-      "float geometrySmith(float ndotl, float ndotv, float roughness) {\n"
-      "  return geometrySchlickGGX(ndotl, roughness) * geometrySchlickGGX(ndotv, roughness);\n"
-      "}\n"
-      TONEMAP_UNCHARTED_2
-      SPHERICAL_UV_SOURCE
-      "void main() {\n"
-      "  vec3 t0 = normalize(worldTangent0);\n"
-      "  vec3 t1 = normalize(worldTangent1);\n"
-      "  vec3 t2 = cross(t0, t1);\n"
-      "  mat3 tbn = mat3(t1, t2, t0);\n"
-      //"  vec3 nm = vec3(texture2D(normalTex, uv).rg * 2.0 - 1.0, 0);\n"
-      //"  nm.z = sqrt(1.0 - dot(nm.xy, nm.xy));\n"
-      "  vec3 nm = texture2D(normalTex, uv).rgb;\n"
-      "  nm.xy = nm.xy * 2.0 - 1.0;\n"
-      //"  vec3 worldNormal = material.useNormalMap > 0.5 ? tbn * nm : t0;\n"
-      "  vec3 worldNormal = tbn * nm;\n"
-      "  vec3 albedo = texture2D(baseTex, uv).rgb;\n"
-      "  vec3 n = normalize(worldNormal);\n"
-      "  vec3 v = normalize(camera.position - worldPosition);\n"
-      "  float ndotv = max(dot(n, v), 0.0);\n"
-      "  vec3 f0 = mix(material.refractiveIndex, albedo, material.metallic);\n"
-      "  vec3 lo = vec3(0.0);\n"
-      "  float oneMinusMetallic = 1.0 - material.metallic;\n"
-      "  for (int i = 0; i < 2; i++) {\n"
-      "    vec3 light = lights[i].position - worldPosition;\n"
-      "    vec3 l = normalize(light);\n" // radiance
-      "    vec3 h = normalize(v + l);\n"
-      "    float distance = length(light);\n"
-      "    float attenuation = 1.0 / (distance * distance);\n"
-      "    vec3 radiance = lights[i].color * attenuation;\n"
-      "    float ndf = distributionGGX(n, h, material.roughness);\n" // cook-torrance
-      "    float ndotl = max(dot(n, l), 0.0);\n"
-      "    float g = geometrySmith(ndotl, ndotv, material.roughness);\n"
-      "    vec3 f = fresnelSchlick(max(dot(h, v), 0.0), f0);\n"
-      "    float d = 4 * ndotl * ndotv;\n"
-      "    vec3 specular = (ndf * g * f) / max(d, 0.001);\n"
-      "    vec3 kd = (vec3(1.0) - f) * oneMinusMetallic;\n"
-      "    lo += (kd * albedo / PI + specular) * radiance * ndotl;\n"
-      "  }\n"
-      "  vec3 kd = (vec3(1.0) - fresnelSchlick(ndotv, f0)) * oneMinusMetallic;\n"
-      "  vec3 irradiance = texture(iblTex, sphericalUV(n)).rgb * 0.05;\n"
-      "  vec3 diffuse = irradiance * albedo;\n"
-      "  vec3 ambient = kd * diffuse * material.ao;\n"
-      "  vec3 color = ambient + lo;\n"
-      "  fragColor = tonemapAndGammaCorrect(color * 16, camera.exposure);\n"
-      "}\n";
+      floorMat[0].textures[static_cast<u32>(TextureType::Base)] = importTexture("../data/cc0textures/Rock26_col.jpg", TextureType::Base);
+      floorMat[0].textures[static_cast<u32>(TextureType::Normal)] = importTexture("../data/cc0textures/Rock26_nrm.jpg", TextureType::Normal);
+      floorMat[0].textures[static_cast<u32>(TextureType::Roughness)] = importTexture("../data/cc0textures/Rock26_rgh.jpg", TextureType::Roughness);
+      floorMat[0].textures[static_cast<u32>(TextureType::AO)] = importTexture("../data/cc0textures/Rock26_AO.jpg", TextureType::AO);
+      floorMat[0].textures[static_cast<u32>(TextureType::Displacement)] = importTexture("../data/cc0textures/Rock26_disp.jpg", TextureType::Displacement);
 
-    auto testVert{ glBuildShader(GL_VERTEX_SHADER, testVertexSource) };
-    auto testFrag{ glBuildShader(GL_FRAGMENT_SHADER, testFragmentSource) };
+      if constexpr (numFloorMats >= 2) {
+        floorMat[1].textures[static_cast<u32>(TextureType::Base)] = importTexture("../data/cc0textures/PavingStones10_col.jpg", TextureType::Base);
+        floorMat[1].textures[static_cast<u32>(TextureType::Normal)] = importTexture("../data/cc0textures/PavingStones10_nrm.jpg", TextureType::Normal);
+        floorMat[1].textures[static_cast<u32>(TextureType::Roughness)] = importTexture("../data/cc0textures/PavingStones10_rgh.jpg", TextureType::Roughness);
+        floorMat[1].textures[static_cast<u32>(TextureType::AO)] = importTexture("../data/cc0textures/PavingStones10_AO.jpg", TextureType::AO);
+        floorMat[1].textures[static_cast<u32>(TextureType::Displacement)] = importTexture("../data/cc0textures/PavingStones10_disp.jpg", TextureType::Displacement);
+      }
 
-    testProg = glCreateProgram();
-    glAttachShader(testProg, testVert);
-    glAttachShader(testProg, testFrag);
-    glLinkProgram(testProg);
-    glCheckProgram(testProg);
-    glUseProgram(testProg);
-    glUniform1i(2, 0);
-    glUniform1i(3, 1);
-    glUniform1i(4, 2);
-    glCheck();
+      if constexpr (numFloorMats >= 3) {
+        floorMat[2].textures[static_cast<u32>(TextureType::Base)] = importTexture("../data/cc0textures/Tiles15_col.jpg", TextureType::Base);
+        floorMat[2].textures[static_cast<u32>(TextureType::Normal)] = importTexture("../data/cc0textures/Tiles15_nrm.jpg", TextureType::Normal);
+        floorMat[2].textures[static_cast<u32>(TextureType::Roughness)] = importTexture("../data/cc0textures/Tiles15_rgh.jpg", TextureType::Roughness);
+        floorMat[2].textures[static_cast<u32>(TextureType::Displacement)] = importTexture("../data/cc0textures/Tiles15_disp.jpg", TextureType::Displacement);
+      }
+
+      if constexpr (numFloorMats >= 4) {
+        floorMat[3].textures[static_cast<u32>(TextureType::Base)] = importTexture("../data/cc0textures/Metal08_col.jpg", TextureType::Base);
+        floorMat[3].textures[static_cast<u32>(TextureType::Normal)] = importTexture("../data/cc0textures/Metal08_nrm.jpg", TextureType::Normal);
+        floorMat[3].textures[static_cast<u32>(TextureType::Metallic)] = importTexture("../data/cc0textures/Metal08_met.jpg", TextureType::Metallic);
+        floorMat[3].textures[static_cast<u32>(TextureType::Roughness)] = importTexture("../data/cc0textures/Metal08_rgh.jpg", TextureType::Roughness);
+        floorMat[3].textures[static_cast<u32>(TextureType::Displacement)] = importTexture("../data/cc0textures/Metal08_disp.jpg", TextureType::Displacement);
+      }
+
+      if constexpr (numFloorMats >= 5) {
+        floorMat[4].textures[static_cast<u32>(TextureType::Base)] = importTexture("../data/cc0textures/Metal22_col.jpg", TextureType::Base);
+        floorMat[4].textures[static_cast<u32>(TextureType::Normal)] = importTexture("../data/cc0textures/Metal22_nrm.jpg", TextureType::Normal);
+        floorMat[4].textures[static_cast<u32>(TextureType::Metallic)] = importTexture("../data/cc0textures/Metal22_met.jpg", TextureType::Metallic);
+        floorMat[4].textures[static_cast<u32>(TextureType::Roughness)] = importTexture("../data/cc0textures/Metal22_rgh.jpg", TextureType::Roughness);
+        floorMat[4].textures[static_cast<u32>(TextureType::Displacement)] = importTexture("../data/cc0textures/Metal08_disp.jpg", TextureType::Displacement);
+      }
+
+      if constexpr (numFloorMats >= 6) {
+        floorMat[5].textures[static_cast<u32>(TextureType::Base)] = importTexture("../data/cc0textures/PavingStones03_col.jpg", TextureType::Base);
+        floorMat[5].textures[static_cast<u32>(TextureType::Normal)] = importTexture("../data/cc0textures/PavingStones03_nrm.jpg", TextureType::Normal);
+        floorMat[5].textures[static_cast<u32>(TextureType::Roughness)] = importTexture("../data/cc0textures/PavingStones03_rgh.jpg", TextureType::Roughness);
+        floorMat[5].textures[static_cast<u32>(TextureType::Displacement)] = importTexture("../data/cc0textures/PavingStones03_disp.jpg", TextureType::Displacement);
+      }
+
+      for (auto n{ 0 }; n < numFloorMats; n++) {
+        floorProg[n] = getShader(floorMat[n], false, true, false);
+      }
+    }
+
+
+    // Gizmo
+    // ------------------------------------------------------------------------
 
   #if BUILD_EDITOR
     auto gizmoVertexSource =
@@ -2090,6 +2555,7 @@ void* renderMain(void* arg) {
       glVertexAttribPointer(1, 3, GL_FLOAT, false, 0,
                             reinterpret_cast<void const*>(boneVertexSize + sphereVertexSize + cubeVertexSize));
       glBindVertexArray(0);
+      glCheck();
 
       boneGizmo.indexCount = boneMesh->indexCount;
       boneGizmo.indexOffset = 0;
@@ -2098,8 +2564,8 @@ void* renderMain(void* arg) {
       sphereGizmo.indexOffset = boneIndexSize;
       sphereGizmo.vertexStart = boneHeader->numVertices;
       cubeGizmo.indexCount = cubeMesh->indexCount;
-      cubeGizmo.indexOffset = boneIndexSize + sphereIndexSize;
-      cubeGizmo.vertexStart = boneHeader->numVertices + sphereHeader->numVertices;
+      cubeGizmo.indexOffset = sphereGizmo.indexOffset + sphereIndexSize;
+      cubeGizmo.vertexStart = sphereGizmo.vertexStart + sphereHeader->numVertices;
     }
   #endif
 
@@ -2180,65 +2646,18 @@ void* renderMain(void* arg) {
     // Asset & Components Test
     // ------------------------------------------------------------------------
   #if BUILD_EDITOR
-    auto testMeshData = testMeshImport(&materials, &numMaterials, &skeleton, &animation);
-    auto meshHeader = std::launder(reinterpret_cast<MeshHeader*>(testMeshData.data()));
+    auto testMeshData = testMeshImport("../data/mixamo/test/Victory.fbx",
+                                       &materials, &numMaterials, &skeleton, &animation);
+    testMeshLoad(testMeshData.data(), &vaoTest, &vboTest, &iboTest, &subMeshesTest, &subMeshesCountTest);
 
-    glGenVertexArrays(1, &vaoTest);
-    glBindVertexArray(vaoTest);
-    glGenBuffers(1, &vboTest);
-    glGenBuffers(1, &iboTest);
-    glBindBuffer(GL_ARRAY_BUFFER, vboTest);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboTest);
 
-    subMeshesTest = new MeshHeader::SubMesh[meshHeader->subMeshCount];
-    subMeshesCountTest = meshHeader->subMeshCount;
-    auto subMeshesSize = sizeof(MeshHeader::SubMesh) * meshHeader->subMeshCount;
-    memcpy(subMeshesTest, testMeshData.data() + sizeof(MeshHeader), subMeshesSize);
+    testProgs = new u32[numMaterials];
+    for (auto n{ 0 }; n < numMaterials; n++) {
+      testProgs[n] = getShader(materials[n], true, false, false);
+    }
 
-    auto indicesOffset = sizeof(MeshHeader) + subMeshesSize;
-    auto indicesSize = meshHeader->numIndices * 4;
-    auto verticesOffset = indicesOffset + indicesSize;
-    auto verticesSize = 0;
-
-    if (meshHeader->flags & MeshHeader::HasPositions) {
-      glEnableVertexAttribArray(0);
-      glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, nullptr);
-      verticesSize += meshHeader->numVertices * 12;
-    }
-    if (meshHeader->flags & MeshHeader::HasTangents) {
-      glEnableVertexAttribArray(1);
-      glEnableVertexAttribArray(2);
-    #if 0
-      glVertexAttribPointer(1, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
-      verticesSize += meshHeader->numVertices * 12;
-    #endif
-      glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
-      verticesSize += meshHeader->numVertices * 12;
-    }
-    /*else*/ if (meshHeader->flags & MeshHeader::HasNormals) {
-      glEnableVertexAttribArray(1);
-      glVertexAttribPointer(1, 3, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
-      verticesSize += meshHeader->numVertices * 12;
-    }
-    if (meshHeader->flags & MeshHeader::HasTexCoords) {
-      glEnableVertexAttribArray(3);
-      glVertexAttribPointer(3, 2, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
-      verticesSize += meshHeader->numVertices * 8;
-    }
-    if (meshHeader->flags & MeshHeader::HasBones) {
-      glEnableVertexAttribArray(4);
-      glVertexAttribPointer(4, 4, GL_FLOAT, false, 0, reinterpret_cast<void*>(verticesSize));
-      verticesSize += meshHeader->numVertices * 16;
-      glEnableVertexAttribArray(5);
-      glVertexAttribIPointer(5, 4, GL_UNSIGNED_BYTE, 0, reinterpret_cast<void*>(verticesSize));
-      verticesSize += meshHeader->numVertices * 4;
-    }
-    glBufferData(GL_ARRAY_BUFFER, verticesSize, testMeshData.data() + verticesOffset, GL_STATIC_DRAW);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesSize, testMeshData.data() + indicesOffset, GL_STATIC_DRAW);
-    glBindVertexArray(0);
     glGenBuffers(1, &uboTest);
     glGenBuffers(1, &uboBones);
-    glCheck();
 
     animState.layers = new AnimState::Layer[animation.numLayers];
     animState.localJoints = new Mat4[skeleton.numBones];
@@ -2317,6 +2736,10 @@ void* renderMain(void* arg) {
     //if (std::fmod(r * 50, 1) > .5)
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CW);
+
     Mat4 proj;
     {
       auto fov = rtm::degrees(60.f).as_radians();
@@ -2344,9 +2767,30 @@ void* renderMain(void* arg) {
     static_assert(offsetof(Buffers, lights) == 512);
     static_assert(sizeof(Buffers) == 256 * 3);
 
+    auto f = std::fmod(r * 30, numIblTexs);
+    auto iblIndex =
+      f > 5 ? 5 :
+      f > 4 ? 4 :
+      f > 3 ? 3 :
+      f > 2 ? 2 :
+      f > 1 ? 1 : 0;
+
+    static constexpr f32 exposures[]{
+      1.5,
+      2.5,
+      2.5,
+      9.0,
+      1.5,
+      0.5
+    };
+
+    targetExposure = exposures[iblIndex];
+    if (currentExposure > targetExposure + 0.01f) currentExposure -= 0.01f;
+    else if (currentExposure < targetExposure - 0.01f) currentExposure += 0.01f;
+
     buffers.camera.position = rtm::vector_set(0.f, 0.1f, -0.1f, 1.f);
     //buffers.camera.exposure = std::sinf(r * 300) * 4 + 8;
-    buffers.camera.exposure = 1.0f;
+    buffers.camera.exposure = currentExposure;
 
     //buffers.material.metallic = 0.05f;
     //buffers.material.roughness = 0.05f;
@@ -2489,7 +2933,8 @@ void* renderMain(void* arg) {
     view.m4x4.w_axis = buffers.camera.position;
     view.m4x4 = rtm::matrix_inverse(view.m4x4);
 
-    auto viewProj = rtm::matrix_mul(view.m4x4, proj.m4x4);
+    Mat4 viewProj;
+    viewProj.m4x4 = rtm::matrix_mul(view.m4x4, proj.m4x4);
 
   #if BUILD_EDITOR
     Mat4 model;
@@ -2504,29 +2949,20 @@ void* renderMain(void* arg) {
                                         //rtm::vector_set(10, 10, 10.f)
       );
       Mat4 mvp;
-      mvp.m4x4 = rtm::matrix_mul(model.m4x4, viewProj);
-      glUseProgram(testProg);
+      mvp.m4x4 = rtm::matrix_mul(model.m4x4, viewProj.m4x4);
       glBindVertexArray(vaoTest);
-      glUniformMatrix4fv(0, 1, false, mvp.v);
-      glUniformMatrix4fv(1, 1, false, model.v);
+      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboTest);
+      glActiveTexture(GL_TEXTURE0 + 6);
+      glBindTexture(GL_TEXTURE_2D, iblTex[iblIndex]);
       glBindBufferRange(GL_UNIFORM_BUFFER, 0, uboTest, cameraOffset, sizeof(buffers.camera));
       glBindBufferRange(GL_UNIFORM_BUFFER, 1, uboTest, materialOffset, sizeof(buffers.material));
       glBindBufferRange(GL_UNIFORM_BUFFER, 2, uboTest, lightsOffset, sizeof(buffers.lights));
       glBindBufferRange(GL_UNIFORM_BUFFER, 3, uboBones, 0, boneSize);
-      glActiveTexture(GL_TEXTURE0 + 2);
-      auto f = std::fmod(r * 10, 1);
-      glBindTexture(GL_TEXTURE_2D, f > 0.67 ? iblTex0 : f > 0.33 ? iblTex1 : iblTex2);
       for (auto n{ 0 }; n < subMeshesCountTest; n++) {
-        auto& sm = subMeshesTest[n];
-        glActiveTexture(GL_TEXTURE0 + 1);
-        glBindTexture(GL_TEXTURE_2D, materials[sm.materialIndex].normal);
-        glActiveTexture(GL_TEXTURE0 + 0);
-        glBindTexture(GL_TEXTURE_2D, materials[sm.materialIndex].color);
-        glDrawElementsBaseVertex(GL_TRIANGLES, sm.indexCount, GL_UNSIGNED_INT,
-                                 reinterpret_cast<void const*>(sm.indexOffset),
-                                 sm.vertexStart);
-        glCheck();
+        auto const& sm{ subMeshesTest[n] };
+        drawSubMesh(sm, materials[sm.materialIndex], testProgs[sm.materialIndex], mvp, model);
       }
+      glCheck();
     }
   #endif
 
@@ -2541,28 +2977,50 @@ void* renderMain(void* arg) {
                                         buffers.lights[n].position,
                                         rtm::vector_set(0.5f, 0.5f, 0.5f));
       Mat4 mvp;
-      mvp.m4x4 = rtm::matrix_mul(localToWorld.m4x4, viewProj);
+      mvp.m4x4 = rtm::matrix_mul(localToWorld.m4x4, viewProj.m4x4);
       glUniformMatrix4fv(mvpPos, 1, false, mvp.v);
       glDrawArrays(GL_TRIANGLES, 0, 3);
       glCheck();
     }
   #endif
 
+    Mat4 floorModel;
+    floorModel.m4x4 = rtm::matrix_identity();
+
+    auto floorRng{ std::fmod(b * 50, numFloorMats) };
+    auto floorIdx{
+      floorRng >= 5 ? 5 :
+      floorRng >= 4 ? 4 :
+      floorRng >= 3 ? 3 :
+      floorRng >= 2 ? 2 :
+      floorRng >= 1 ? 1 : 0 };
+
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glBindVertexArray(vaoFloor);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboFloor);
+    drawSubMesh(floorSubMeshes[0], floorMat[floorIdx], floorProg[floorIdx], viewProj, floorModel, true);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     auto skyboxView{ view };
     skyboxView.m4x4.w_axis = rtm::vector_set(0, 0, 0, 1.f);
+    glDisable(GL_CULL_FACE);
     glDepthMask(false);
     glUseProgram(skyboxProg);
     glBindVertexArray(vaoGizmo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboGizmo);
     glUniformMatrix4fv(0, 1, false, proj.v);
     glUniformMatrix4fv(1, 1, false, skyboxView.v);
+    glUniform1f(3, currentExposure / 4);
     drawGizmo(cubeGizmo);
     glDepthMask(true);
 
   #if BUILD_EDITOR && 0
+    glEnable(GL_CULL_FACE);
     glClear(GL_DEPTH_BUFFER_BIT);
     f32 color[3]{ .9f, 0.f, 0.f };
     glUseProgram(progGizmo);
     glBindVertexArray(vaoGizmo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboGizmo);
     glUniform3fv(2, 1, color);
     glUniformMatrix4fv(0, 1, false, proj.v);
     drawBones(model, view, animState.worldJoints);
@@ -2570,6 +3028,7 @@ void* renderMain(void* arg) {
   #endif
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
     glDepthMask(false);
     {
@@ -2617,7 +3076,7 @@ void* renderMain(void* arg) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_CULL_FACE);
     glEnable(GL_SCISSOR_TEST);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glActiveTexture(GL_TEXTURE0);
 
 #if 0
     vtxOffset = 0;

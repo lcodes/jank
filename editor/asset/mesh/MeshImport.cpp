@@ -130,7 +130,7 @@ static Color readColor(aiMaterialProperty const& prop) {
   return c;
 }
 
-u8 countSkeletonBones(aiNode const& node) {
+static u8 countSkeletonBones(aiNode const& node) {
   u8 count{ 1 };
   for (u32 n{ 0 }; n < node.mNumChildren; n++) {
     count += countSkeletonBones(*node.mChildren[n]);
@@ -147,7 +147,7 @@ struct BoneLookup {
   bool used;
 };
 
-i16 setupSkeletonLookup(aiNode const& node, BoneLookup* lookup, i16 parent = -1, i16 index = -1) {
+static i16 setupSkeletonLookup(aiNode const& node, BoneLookup* lookup, i16 parent = -1, i16 index = -1) {
   i16 offset{ 1 };
   i16 self{ index + offset };
   lookup[self] = {
@@ -164,11 +164,11 @@ i16 setupSkeletonLookup(aiNode const& node, BoneLookup* lookup, i16 parent = -1,
   return offset;
 }
 
-Animation::Behaviour getAnimationBehaviour(aiAnimBehaviour const behaviour) {
+static Animation::Behaviour getAnimationBehaviour(aiAnimBehaviour const behaviour) {
   return static_cast<Animation::Behaviour>(behaviour); // Using the same values for now.
 }
 
-u32 getFlags(aiMesh const& mesh) {
+static u32 getFlags(aiMesh const& mesh) {
   u32 flags = 0;
   // TODO mesh.HasFaces()
   if (mesh.HasPositions()) flags |= MeshHeader::HasPositions;
@@ -179,14 +179,30 @@ u32 getFlags(aiMesh const& mesh) {
   return flags;
 }
 
-u32 importTexture(char const* filename, bool normal);
-u32 importTextureData(void const* data, usize size, bool normal);
+static TextureType getTextureType(aiTextureType tex) {
+  switch (tex) {
+  case aiTextureType_BASE_COLOR:
+  case aiTextureType_DIFFUSE: return TextureType::Base;
+  case aiTextureType_NORMALS: return TextureType::Normal;
+  case aiTextureType_METALNESS: return TextureType::Metallic;
+  case aiTextureType_DIFFUSE_ROUGHNESS: return TextureType::Roughness;
+  case aiTextureType_AMBIENT_OCCLUSION: return TextureType::AO;
+  default:
+    LOG(ImportMesh, Warn, "Unknown texture type: %d", tex);
+    return TextureType::Unknown;
+  }
+}
+
+u32 importTexture(char const* filename, TextureType type);
+u32 importTextureData(void const* data, usize size, TextureType type);
 
 
 // Importer
 // ----------------------------------------------------------------------------
 #include <unordered_map>
-std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* skeleton, Animation* animation) {
+std::string testMeshImport(char const* filename, Material** materials, u32* numMaterials,
+                           Skeleton* skeleton, Animation* animation)
+{
   // TODO thread-local importer, recycle its allocations
   Assimp::Importer imp;
   ProgressHandler progressHandler;
@@ -223,7 +239,7 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
   //auto scene{ imp.ReadFile("../data/Eyebot/Eyebot.obj", processFlags) };
   //auto scene{ imp.ReadFile("../data/Main Outfit/Ellie_MainOutfit.obj", processFlags) };
 
-  auto scene{ imp.ReadFile("../data/mixamo/test/Cross Jumps.fbx", processFlags) };
+  auto scene{ imp.ReadFile(filename, processFlags) };
 
   // Prevent Assimp from running the progress handler destructor.
   imp.SetProgressHandler(nullptr);
@@ -254,13 +270,17 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
 #endif
   }
 
+  if (!numMaterials || !materials) goto skipMaterial;
+
   *numMaterials = scene->mNumMaterials;
   *materials = new Material[scene->mNumMaterials];
 
 #define PROP(s) prop.mKey.length == sizeof(s) - 1 && memcmp(prop.mKey.data, s, sizeof(s) - 1) == 0
   for (auto n{ 0 }; n < scene->mNumMaterials; n++) {
-    (*materials)[n].color = 0;
-    (*materials)[n].normal = 0;
+    for (auto i{ 0 }; i < textureTypeCount; i++) {
+      (*materials)[n].textures[i] = 0;
+    }
+
     auto const& mat{ *scene->mMaterials[n] };
     for (auto i{ 0 }; i < mat.mNumProperties; i++) {
       auto const& prop{ *mat.mProperties[i] };
@@ -271,14 +291,13 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
         auto semantic{ static_cast<aiTextureType>(prop.mSemantic) };
         auto name{ readStr(prop) };
         ASSERT(name.size() > 0);
-        if (semantic == aiTextureType_DIFFUSE || semantic == aiTextureType_NORMALS) {
-          bool isNormal = semantic == aiTextureType_NORMALS;
+        auto textureType{ getTextureType(semantic) };
+        if (textureType != TextureType::Unknown) {
           u32 id;
           if (name[0] == '*') {
             ASSERT(0, "TODO assimp embedded texture references");
           }
           else {
-
             bool found = false;
             for (auto texN{ 0 }; texN < scene->mNumTextures; texN++) {
               auto const& tex{ *scene->mTextures[texN] };
@@ -289,7 +308,7 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
                 }
                 else {
                   ASSERT(tex.mHeight == 0, "TODO embedded uncompressed textures");
-                  id = importTextureData(tex.pcData, tex.mWidth, isNormal);
+                  id = importTextureData(tex.pcData, tex.mWidth, textureType);
                   texCache.insert(std::make_pair(texName, TexCacheItem{ std::string{ texName }, id }));
                 }
                 found = true;
@@ -311,18 +330,13 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
               }
               else {
                 LOG(ImportMesh, Info, "TEX %.*s", static_cast<u32>(name.size()), name.data());
-                id = importTexture(texFile.c_str(), isNormal);
+                id = importTexture(texFile.c_str(), textureType);
                 texCache.insert(std::make_pair(texFile, TexCacheItem{ texFile, id }));
               }
             }
           }
 
-          if (isNormal) {
-            (*materials)[n].normal = id;
-          }
-          else {
-            (*materials)[n].color = id;
-          }
+          (*materials)[n].textures[static_cast<u32>(textureType)] = id;
         }
       }
       else if (PROP("$tex.file.texCoord")) {
@@ -428,6 +442,8 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
   }
 #undef PROP
 
+  skipMaterial:
+
   auto meshBoneLookupSize{ 0 };
   auto const boneLookupSize{ countSkeletonBones(*scene->mRootNode) };
   std::unique_ptr<BoneLookup[]> boneLookup{ new BoneLookup[boneLookupSize] };
@@ -486,6 +502,7 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
 
   // Build the bone lookup.
   u32 boneIndex{ 0 };
+  if (!skeleton) goto skipSkeleton;
   for (auto n{ 0 }; n < scene->mNumMeshes; n++) {
     auto const& mesh{ *scene->mMeshes[n] };
     if (mesh.mPrimitiveTypes != aiPrimitiveType_TRIANGLE) continue; // TODO
@@ -601,14 +618,7 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
     vertexStart += mesh.mNumVertices;
   }
 
-  // Sanity check?
-#if 0
-  for (auto n{ 0 }; n < header.numVertices; n++) {
-    for (auto i{ 0 }; i < 3; i++) {
-      ASSERT(boneWeights[n][i] > 0);
-    }
-  }
-#endif
+  skipSkeleton:
 
   // Write the indices.
   for (auto n{ 0 }; n < scene->mNumMeshes; n++) {
@@ -634,6 +644,17 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
     }
   }
 
+  // Write the vertex normals.
+  if (header.flags & MeshHeader::HasNormals) {
+    for (auto n{ 0 }; n < scene->mNumMeshes; n++) {
+      auto const& mesh{ *scene->mMeshes[n] };
+      if (mesh.mPrimitiveTypes != aiPrimitiveType_TRIANGLE) continue; // TODO
+      if (header.flags != getFlags(mesh)) continue;
+
+      out.write(reinterpret_cast<char const*>(mesh.mNormals), 12 * mesh.mNumVertices);
+    }
+  }
+
   // Write the vertex tangents.
   if (header.flags & MeshHeader::HasTangents) {
     for (auto n{ 0 }; n < scene->mNumMeshes; n++) {
@@ -652,16 +673,6 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
       out.write(reinterpret_cast<char const*>(mesh.mBitangents), 12 * mesh.mNumVertices);
     }
   #endif
-  }
-  // Write the vertex normals.
-  /*else*/ if (header.flags & MeshHeader::HasNormals) {
-    for (auto n{ 0 }; n < scene->mNumMeshes; n++) {
-      auto const& mesh{ *scene->mMeshes[n] };
-      if (mesh.mPrimitiveTypes != aiPrimitiveType_TRIANGLE) continue; // TODO
-      if (header.flags != getFlags(mesh)) continue;
-
-      out.write(reinterpret_cast<char const*>(mesh.mNormals), 12 * mesh.mNumVertices);
-    }
   }
 
   // Write the texture coordinates.
@@ -688,6 +699,8 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
   // TODO simplify -> LODs
 
   // Setup animations.
+  if (!animation) return out.str();
+
   u8 numLayers{ 0 }; // TODO retargetting
   u32 totalRotationFrames{ 0 };
   u32 totalPositionFrames{ 0 };
@@ -799,6 +812,7 @@ std::string testMeshImport(Material** materials, u32* numMaterials, Skeleton* sk
 
 std::string testMeshImportSimple(char const* filename) {
   auto processFlags{
+    aiProcess_CalcTangentSpace |
     aiProcess_JoinIdenticalVertices |
     aiProcess_Triangulate |
     aiProcess_ValidateDataStructure |

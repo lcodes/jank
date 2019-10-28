@@ -1,5 +1,7 @@
 #include "core/Core.hpp"
 
+#include "app/GfxTest.hpp"
+
 #include "Compressonator.h"
 
 // TODO: use IO callbacks
@@ -32,9 +34,25 @@ static bool compressCallback(f32 progress,
   return false;
 }
 
-u32 loadImage(CMP_Texture const& tex, bool isNormal);
+u32 loadImage(CMP_Texture const& tex, TextureType type);
 
-u32 importTextureImpl(stbi_uc* image, i32 w, i32 h, bool isNormal) {
+static u32 getSrcPixelSize(TextureType type) {
+  switch (type) {
+  case TextureType::Base: return 4; // TODO RGB
+  case TextureType::Normal: return 3;
+  default: return 1;
+  }
+}
+
+static CMP_FORMAT getSrcFormat(TextureType type) {
+  switch (type) {
+  case TextureType::Base: return CMP_FORMAT_RGBA_8888; // TODO RGB
+  case TextureType::Normal: return CMP_FORMAT_RGB_888;
+  default: return CMP_FORMAT_R_8;
+  }
+}
+
+u32 importTextureImpl(stbi_uc* image, i32 w, i32 h, TextureType type) {
   if (!image) {
     LOG(ImportImage, Error, "Failed to load image: %s", stbi_failure_reason());
     return 0;
@@ -44,15 +62,15 @@ u32 importTextureImpl(stbi_uc* image, i32 w, i32 h, bool isNormal) {
   src.dwSize = sizeof(src);
   src.dwWidth = w;
   src.dwHeight = h;
-  src.format = isNormal ? CMP_FORMAT_RGB_888 : CMP_FORMAT_RGBA_8888;
-  src.dwDataSize = w * h * (isNormal ? 3 : 4);
+  src.format = getSrcFormat(type);
+  src.dwDataSize = w * h * getSrcPixelSize(type);
   src.pData = image;
 
   CMP_Texture dst{};
   dst.dwSize = sizeof(dst);
   dst.dwWidth = w;
   dst.dwHeight = h;
-  dst.format = isNormal ? CMP_FORMAT_BC5 : CMP_FORMAT_DXT5;
+  dst.format = CMP_FORMAT_DXT5; // TODO more than base
   dst.dwDataSize = CMP_CalculateBufferSize(&dst);
   dst.pData = new CMP_BYTE[dst.dwDataSize];
 
@@ -64,7 +82,7 @@ u32 importTextureImpl(stbi_uc* image, i32 w, i32 h, bool isNormal) {
 
   u32 id = 0;
 
-  if (!isNormal) {
+  if (type == TextureType::Base) {
     auto status{ CMP_ConvertTexture(&src, &dst, &opts, compressCallback, 0, 0) };
     if (status != CMP_OK) {
       char const* err;
@@ -87,11 +105,11 @@ u32 importTextureImpl(stbi_uc* image, i32 w, i32 h, bool isNormal) {
     }
     else {
       // TODO save file
-      id = loadImage(dst, isNormal);
+      id = loadImage(dst, type);
     }
   }
   else {
-    id = loadImage(src, isNormal);
+    id = loadImage(src, type);
   }
 
   delete[] dst.pData;
@@ -100,20 +118,28 @@ u32 importTextureImpl(stbi_uc* image, i32 w, i32 h, bool isNormal) {
   return id;
 }
 
-u32 importTextureData(void const* data, usize size, bool isNormal) {
-  i32 w, h, channels;
-  auto image{ stbi_load_from_memory(static_cast<stbi_uc const*>(data), size,
-                                    &w, &h, &channels, isNormal ? STBI_rgb : STBI_rgb_alpha) };
-
-  return importTextureImpl(image, w, h, isNormal);
+static u32 getStbFormat(TextureType type) {
+  switch (type) {
+  case TextureType::Base: return STBI_rgb_alpha; // TODO RGB
+  case TextureType::Normal: return STBI_rgb;
+  default: return STBI_grey;
+  }
 }
 
-u32 importTexture(char const* filename, bool isNormal) {
+u32 importTextureData(void const* data, usize size, TextureType type) {
+  i32 w, h, channels;
+  auto image{ stbi_load_from_memory(static_cast<stbi_uc const*>(data), size,
+                                    &w, &h, &channels, getStbFormat(type)) };
+
+  return importTextureImpl(image, w, h, type);
+}
+
+u32 importTexture(char const* filename, TextureType type) {
   stbi_convert_iphone_png_to_rgb(true);
 
   i32 w, h, channels;
-  auto image{ stbi_load(filename, &w, &h, &channels, isNormal ? STBI_rgb : STBI_rgb_alpha) };
-  return importTextureImpl(image, w, h, isNormal);
+  auto image{ stbi_load(filename, &w, &h, &channels, getStbFormat(type)) };
+  return importTextureImpl(image, w, h, type);
 }
 
 u32 loadImageHDR(void const* data, u32 w, u32 h);

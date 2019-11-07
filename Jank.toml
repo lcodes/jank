@@ -25,6 +25,7 @@ include_dirs = ["engine",
                 "external/EGL-Registry/api",
                 "external/OpenGL-Registry/api",
                 "external/rtm/includes",
+                "external/concurrentqueue",
                 "external/imgui",
                 "external/Box2D",
                 # "external/chibi-scheme/include"

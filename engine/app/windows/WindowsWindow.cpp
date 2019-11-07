@@ -75,7 +75,7 @@ static void createClass(UINT style, WNDPROC proc) {
   wc.cbClsExtra    = 0;
   wc.cbWndExtra    = 0;
   wc.hInstance     = okWin(GetModuleHandleW(nullptr));
-  wc.hIcon         = okWin(LoadIconW(nullptr, IDI_APPLICATION)); // TODO MAKEINTRESOURCEW(2)
+  wc.hIcon         = okWin(LoadIconW(wc.hInstance, MAKEINTRESOURCEW(2)));
   wc.hCursor       = okWin(LoadCursorW(nullptr, IDC_ARROW));
   wc.hbrBackground = nullptr;
   wc.lpszMenuName  = nullptr;

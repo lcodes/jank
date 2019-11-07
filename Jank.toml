@@ -40,8 +40,9 @@ include_dirs = ["engine",
 
 "engine/audio/coreaudio" = ["MacOS", "IOS", "TVOS"]
 "engine/audio/openal"    = ["Linux", "Android", "HTML5"]
-"engine/audio/xaudio"    = ["Windows"]
+"engine/audio/xaudio2"   = ["Windows"]
 
+"engine/gfx/d3d11"  = ["Windows"]
 "engine/gfx/d3d12"  = ["Windows"]
 "engine/gfx/metal"  = ["MacOS", "IOS", "TVOS"]
 "engine/gfx/vulkan" = ["Android", "Windows", "Linux"]

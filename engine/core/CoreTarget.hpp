@@ -136,9 +136,6 @@
 # error "Unsupported platform"
 #endif
 
-/// Platform implementing the POSIX standard.
-#define PLATFORM_POSIX (!PLATFORM_WINDOWS && !PLATFORM_HTML5)
-
 /// Platform is one of macOS, iOS, tvOS or watchOS.
 #ifndef PLATFORM_APPLE
 # define PLATFORM_APPLE 0
@@ -188,6 +185,12 @@
 #ifndef PLATFORM_HTML5
 # define PLATFORM_HTML5 0
 #endif
+
+/// Platform implementing the POSIX standard.
+#define PLATFORM_POSIX (!PLATFORM_WINDOWS && !PLATFORM_HTML5)
+
+#define PLATFORM_DESKTOP (PLATFORM_WINDOWS || PLATFORM_LINUX || PLATFORM_MACOS)
+#define PLATFORM_MOBILE  (PLATFORM_IPHONE || PLATFORM_ANDROID || PLATFORM_HTML5)
 
 
 // Architecture

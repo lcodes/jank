@@ -194,8 +194,18 @@ static TextureType getTextureType(aiTextureType tex) {
 }
 
 u32 importTexture(char const* filename, TextureType type);
-u32 importTextureData(void const* data, usize size, TextureType type);
+u32 importTextureData(char const* filename, void const* data, usize size, TextureType type);
 
+std::string dirName(char const* filename) {
+#if PLATFORM_WINDOWS
+  {
+    auto p{ strrchr(filename, '\\') };
+    if (p) return { filename, static_cast<usize>(p - filename) };
+  }
+#endif
+  auto p{ strrchr(filename, '/') };
+  return p ? std::string{ filename, static_cast<usize>((p + 1) - filename) } : std::string{ filename };
+}
 
 // Importer
 // ----------------------------------------------------------------------------
@@ -308,7 +318,7 @@ std::string testMeshImport(char const* filename, Material** materials, u32* numM
                 }
                 else {
                   ASSERT(tex.mHeight == 0, "TODO embedded uncompressed textures");
-                  id = importTextureData(tex.pcData, tex.mWidth, textureType);
+                  id = importTextureData(tex.mFilename.C_Str(), tex.pcData, tex.mWidth, textureType);
                   texCache.insert(std::make_pair(texName, TexCacheItem{ std::string{ texName }, id }));
                 }
                 found = true;
@@ -317,13 +327,7 @@ std::string testMeshImport(char const* filename, Material** materials, u32* numM
             }
 
             if (!found) {
-              //std::string texFile{ "../data/Alduin/" };
-              //std::string texFile{ "../data/Harley Quinn/" };
-              //std::string texFile{ "../data/Harley_Quinn/" };
-              //std::string texFile{ "../data/Fat Man/" };
-              //std::string texFile{ "../data/Flamethrower/" };
-              std::string texFile{ "../data/Eyebot/" };
-              //std::string texFile{ "../data/Main Outfit/" };
+              std::string texFile{ dirName(filename) };
               texFile += name;
               if (auto it = texCache.find(texFile); it != texCache.end()) {
                 id = it->second.id;
@@ -900,4 +904,3 @@ std::string testMeshImportSimple(char const* filename) {
 //     - Material Index
 //     - Index offset & count
 //     - Vertex base (start & end? only used by GL in glDrawRangeElements?)
-

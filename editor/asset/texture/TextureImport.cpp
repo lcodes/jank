@@ -34,7 +34,7 @@ static bool compressCallback(f32 progress,
   return false;
 }
 
-u32 loadImage(CMP_Texture const& tex, TextureType type);
+u32 loadImage(char const* filename, CMP_Texture const& tex, TextureType type);
 
 static u32 getSrcPixelSize(TextureType type) {
   switch (type) {
@@ -52,7 +52,7 @@ static CMP_FORMAT getSrcFormat(TextureType type) {
   }
 }
 
-u32 importTextureImpl(stbi_uc* image, i32 w, i32 h, TextureType type) {
+u32 importTextureImpl(char const* filename, stbi_uc* image, i32 w, i32 h, TextureType type) {
   if (!image) {
     LOG(ImportImage, Error, "Failed to load image: %s", stbi_failure_reason());
     return 0;
@@ -105,11 +105,11 @@ u32 importTextureImpl(stbi_uc* image, i32 w, i32 h, TextureType type) {
     }
     else {
       // TODO save file
-      id = loadImage(dst, type);
+      id = loadImage(filename, dst, type);
     }
   }
   else {
-    id = loadImage(src, type);
+    id = loadImage(filename, src, type);
   }
 
   delete[] dst.pData;
@@ -126,12 +126,12 @@ static u32 getStbFormat(TextureType type) {
   }
 }
 
-u32 importTextureData(void const* data, usize size, TextureType type) {
+u32 importTextureData(char const* filename, void const* data, usize size, TextureType type) {
   i32 w, h, channels;
   auto image{ stbi_load_from_memory(static_cast<stbi_uc const*>(data), size,
                                     &w, &h, &channels, getStbFormat(type)) };
 
-  return importTextureImpl(image, w, h, type);
+  return importTextureImpl(filename, image, w, h, type);
 }
 
 u32 importTexture(char const* filename, TextureType type) {
@@ -139,14 +139,14 @@ u32 importTexture(char const* filename, TextureType type) {
 
   i32 w, h, channels;
   auto image{ stbi_load(filename, &w, &h, &channels, getStbFormat(type)) };
-  return importTextureImpl(image, w, h, type);
+  return importTextureImpl(filename, image, w, h, type);
 }
 
-u32 loadImageHDR(void const* data, u32 w, u32 h);
+u32 loadImageHDR(char const* filename, void const* data, u32 w, u32 h);
 u32 importTextureHDR(char const* filename) {
   i32 w, h, channels;
   auto image{ stbi_loadf(filename, &w, &h, &channels, 0) };
-  auto id = loadImageHDR(image, w, h);
+  auto id = loadImageHDR(filename, image, w, h);
   stbi_image_free(image);
   return id;
 }

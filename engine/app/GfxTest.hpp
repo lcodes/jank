@@ -67,6 +67,12 @@ public:
 # error TODO Implement SyncEvent for the target platform
 #endif
 
+enum class InputKeys {
+  W, S, A, D,
+  Shift, Space,
+  Count
+};
+
 class OpenGL {
 public:
 #if GFX_PRESENT_THREAD
@@ -77,6 +83,19 @@ public:
   f32 width;
   f32 height;
   f32 dpi;
+
+  bool input[static_cast<u32>(InputKeys::Count)]{ false, false, false, false, false, false };
+  f32 mouseX = -1;
+  f32 mouseY = -1;
+  f32 xOffset = 0;
+  f32 yOffset = 0;
+
+  bool getInput(InputKeys k) const {
+    return input[static_cast<u32>(k)];
+  }
+  f32 getAxis(InputKeys a, InputKeys b) const {
+    return getInput(a) ? -1 : getInput(b) ? 1 : 0;
+  }
 
   OpenGL() :
 #if GFX_PRESENT_THREAD
@@ -200,6 +219,7 @@ struct MaterialDef {
 struct Material {
   MaterialDef* def;
   u32 textures[static_cast<u32>(TextureType::Count)];
+  u32 uboIndex;
   // Uniforms
 };
 

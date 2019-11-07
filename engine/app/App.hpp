@@ -1,27 +1,44 @@
 #pragma once
 
 #include "core/Core.hpp"
+#include "core/CoreModule.hpp"
+
+#include <functional>
 
 DECL_LOG_SOURCE(App, Trace);
 
-/// Manages the application state and handles events from the OS.
-class App : NonCopyable {
-  // Current time
-  // Delta time
+class AppWindow;
 
-  // Total frames
-  // Average FPS
+class App : public Singleton<App> {
+  static bool running;
 
-  // Paths
-
-  // Project name
+  App() = delete;
 
 protected:
-  App() = default;
+  static AppWindow* mainWindow;
 
-  virtual void onFocusGained();
-  virtual void onFocusLost();
+  static void init();
+  static void term();
 
-  virtual void onPause();
-  virtual void onResume();
+  static void mainJob();
+
+  static void gainFocus();
+  static void loseFocus();
+
+  static void pause();
+  static void resume();
+
+  static void lowMemory();
+
+public:
+  using Fn = std::function<void()>;
+
+  static void runOnMainThread(Fn&& fn);
+
+  static void quit();
+
+  static bool isRunning() { return running; }
+
+  static AppWindow* getMainWindow() { return mainWindow; }
 };
+

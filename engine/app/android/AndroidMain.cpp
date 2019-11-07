@@ -10,6 +10,7 @@
 
 #include <EGL/egl.h>
 
+DECL_LOG_SOURCE(Input, Info);
 class AndroidController {
 
 };
@@ -121,70 +122,101 @@ static void* presentMain(void* arg) {
 
 static AndroidOpenGL gl;
 
-static void jank_android_onAppCmd(android_app* app, i32 cmd) {
+class AndroidApp : public App {
+public:
+  android_app* app;
+
+  AndroidApp(android_app* app) : app(app) {}
+
+  static AndroidApp* get() { return static_cast<AndroidApp*>(App::get()); }
+
+  static void onCmd(android_app* app, i32 cmd);
+  static void onInput(android_app* app, AInputEvent* event);
+};
+
+void App::runOnMainThread(Fn&& fn) {
+  // TODO
+}
+
+void App::quit() {
+  AndroidApp::get()->app->destroyRequested = true;
+}
+
+void AndroidApp::onCmd(android_app* app, i32 cmd) {
+  auto& main{ *reinterpret_cast<AndroidApp*>(app->userData) };
+
   switch (cmd) {
-  case APP_CMD_INPUT_CHANGED:
-    LOG(App, Info, "Input Changed");
-    break;
   case APP_CMD_INIT_WINDOW:
-    LOG(App, Info, "Init Window");
+    LOG(App, Trace, "Init Window");
     if (!gl.context) gl.init(app);
     break;
   case APP_CMD_TERM_WINDOW:
-    LOG(App, Info, "Term Window");
+    LOG(App, Trace, "Term Window");
     break;
   case APP_CMD_WINDOW_RESIZED:
-    LOG(App, Info, "Window Resized");
+    LOG(App, Trace, "Window Resized");
     break;
   case APP_CMD_WINDOW_REDRAW_NEEDED:
-    LOG(App, Info, "Window Redraw Needed");
+    LOG(App, Trace, "Window Redraw Needed");
     break;
   case APP_CMD_CONTENT_RECT_CHANGED:
-    LOG(App, Info, "Content Rect Changed");
-    break;
-  case APP_CMD_GAINED_FOCUS:
-    LOG(App, Info, "Gained Focus");
-    break;
-  case APP_CMD_LOST_FOCUS:
-    LOG(App, Info, "Lost Focus");
-    break;
-  case APP_CMD_CONFIG_CHANGED:
-    LOG(App, Info, "Config Changed");
-    break;
-  case APP_CMD_LOW_MEMORY:
-    LOG(App, Info, "Low Memory");
+    LOG(App, Trace, "Content Rect Changed");
     break;
   case APP_CMD_START:
-    LOG(App, Info, "Start");
-    break;
-  case APP_CMD_RESUME:
-    LOG(App, Info, "Resume");
-    break;
-  case APP_CMD_SAVE_STATE:
-    LOG(App, Info, "Save State");
-    break;
-  case APP_CMD_PAUSE:
-    LOG(App, Info, "Pause");
+    LOG(App, Trace, "Start");
     break;
   case APP_CMD_STOP:
-    LOG(App, Info, "Stop");
+    LOG(App, Trace, "Stop");
     break;
   case APP_CMD_DESTROY:
-    LOG(App, Info, "Destroy");
+    LOG(App, Trace, "Destroy");
+    break;
+  case APP_CMD_PAUSE:
+    LOG(App, Trace, "Pause");
+    main.pause();
+    break;
+  case APP_CMD_RESUME:
+    LOG(App, Trace, "Resume");
+    main.resume();
+    break;
+  case APP_CMD_GAINED_FOCUS:
+    LOG(App, Trace, "Gained Focus");
+    main.gainFocus();
+    break;
+  case APP_CMD_LOST_FOCUS:
+    LOG(App, Trace, "Lost Focus");
+    main.lostFocus();
+    break;
+  case APP_CMD_LOW_MEMORY:
+    LOG(App, Trace, "Low Memory");
+    main.lowMemory();
+    break;
+  case APP_CMD_CONFIG_CHANGED:
+    LOG(App, Trace, "Config Changed");
+    break;
+  case APP_CMD_INPUT_CHANGED:
+    LOG(App, Trace, "Input Changed");
+    break;
+  case APP_CMD_SAVE_STATE:
+    LOG(App, Trace, "Save State");
     break;
   default:
+    LOG(App, Debug, "Unknown cmd: 0x%x", cmd);
     break;
   }
 }
-DECL_LOG_SOURCE(Input, Info);
-static i32 jank_android_onInputEvent(android_app* app UNUSED, AInputEvent* event) {
-  LOG(Input, Info, "Device ID: %i", AInputEvent_getDeviceId(event));
+
+i32 AndroidApp::onInput(android_app* app, AInputEvent* event) {
+  auto& main{ *reinterpret_cast<AndroidApp*>(app->userData) };
+
+  LOG(Input, Trace, "Device ID: %i", AInputEvent_getDeviceId(event));
   auto src{ AInputEvent_getSource(event) };
 
-  switch (AInputEvent_getType(event)) {
+  auto type{ AInputEvent_getType(event) };
+  switch (type) {
   case AINPUT_EVENT_TYPE_KEY: {
     auto k = AKeyEvent_getKeyCode(event);
-    LOG(Input, Info, "Input Key: %d", k);
+    LOG(App, Trace, "Input Key: %d", k);
     return true;
   }
 
@@ -192,24 +224,29 @@ static i32 jank_android_onInputEvent(android_app* app UNUSED, AInputEvent* event
     // auto pointerCount{AMotionEvent_getPointerCount(event)};
     auto x = AMotionEvent_getX(event, 0);
     auto y = AMotionEvent_getY(event, 0);
-    LOG(Input, Info, "Input Motion: %f %f", x, y);
+    LOG(App, Trace, "Input Motion: %f %f", x, y);
     return true;
   }
 
   default:
-    LOG(Input, Debug, "Missed event");
+    LOG(App, Debug, "Unknown event type: 0x%x", type);
     return false;
   }
 }
 
 void android_main(android_app* app) {
-  auto windowFlags{
-    AWINDOW_FLAG_FULLSCREEN |
-    AWINDOW_FLAG_KEEP_SCREEN_ON
-  };
-  ANativeActivity_setWindowFlags(app->activity, windowFlags, 0);
+  AndroidApp main(app);
+  app->userData     = &main;
+  app->onAppCmd     = AndroidApp::onCmd;
+  app->onInputEvent = AndroidApp::onInput;
 
   {
+    auto windowFlags{
+      AWINDOW_FLAG_FULLSCREEN |
+      AWINDOW_FLAG_KEEP_SCREEN_ON
+    };
+    ANativeActivity_setWindowFlags(app->activity, windowFlags, 0);
+
     auto javaVM{app->activity->vm};
     auto jniEnv{app->activity->env};
     JavaVMAttachArgs args;
@@ -253,30 +290,22 @@ void android_main(android_app* app) {
     jniEnv->CallVoidMethod(viewObject, setSystemUiVisibility, flags);
   }
 
-  app->userData     = nullptr; // TODO
-  app->onAppCmd     = jank_android_onAppCmd;
-  app->onInputEvent = jank_android_onInputEvent;
+  main.init();
 
-  android_poll_source* source;
   i32 result;
-  i32 events;
-  int fds;
+  android_poll_source* source;
 
-  while (true) {
-    while ((result = ALooper_pollAll(0, &fds, &events, reinterpret_cast<void**>(&source))) > 0) {
-      if (source) {
-        source->process(app, source);
-      }
+  while ((result = ALooper_pollAll(-1, nullptr, nullptr, reinterpret_cast<void**>(&source))) > 0) {
+    if (source) {
+      source->process(app, source);
     }
-
-    // assert(result == 0);
 
     if (app->destroyRequested) {
       break;
     }
 
-    // Run
+    // assert(result == 0);
   }
 
-  // Terminate
+  main.term();
 }

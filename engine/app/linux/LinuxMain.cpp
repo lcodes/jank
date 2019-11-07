@@ -65,17 +65,66 @@ static i32 visualAttrs[]{
   None
 };
 
+class LinuxApp : public App {
+public:
+  Display display;
+  xcbConnection conn;
+
+  LinuxApp();
+  ~LinuxApp();
+
+  void main();
+};
+
+LinuxApp::LinuxApp() {
+  display = okC(XOpenDisplay(nullptr));
+  conn = okC(XGetXCBConnection(display));
+
+  XSetEventQueueOwner(display, XCBOwnsEventQueue);
+}
+
+LinuxApp::~LinuxApp() {
+  XCloseDisplay(display);
+}
+
+void LinuxApp::main() {
+  init();
+
+  auto running{ true };
+  while (running) {
+    auto event{ xcb_wait_for_event(conn) };
+    ASSERT(event);
+
+    switch (event->response_type & ~0x80) {
+    case XCB_KEY_PRESS:
+      running = false;
+      break;
+
+    case XCB_EXPOSE:
+      break;
+    }
+
+    free(event);
+  }
+
+  term();
+}
+
+void App::runOnMainThread(Fn&& fn) {
+
+}
+
+void App::quit() {
+
+}
+
 i32 main(i32 argc UNUSED, char* argv UNUSED[]) {
+  LinuxApp app;
+
   LinuxOpenGL gl;
   gl.width = 800;
   gl.height = 600;
-  gl.display = XOpenDisplay(nullptr);
-  ASSERT(gl.display);
-
-  auto conn{ XGetXCBConnection(gl.display) };
-  ASSERT(conn);
-
-  XSetEventQueueOwner(gl.display, XCBOwnsEventQueue);
+  gl.display = app.display;
 
   auto defaultScreen{ DefaultScreen(gl.display) };
 
@@ -121,27 +170,11 @@ i32 main(i32 argc UNUSED, char* argv UNUSED[]) {
 #endif
   pthread_create(&present, nullptr, &presentMain, &gl);
 
-  auto running{ true };
-  while (running) {
-    auto event{ xcb_wait_for_event(conn) };
-    ASSERT(event);
-
-    switch (event->response_type & ~0x80) {
-    case XCB_KEY_PRESS:
-      running = false;
-      break;
-
-    case XCB_EXPOSE:
-      break;
-    }
-
-    free(event);
-  }
+  app.main();
 
   glXDestroyWindow(gl.display, gl.drawable);
   xcb_destroy_window(conn, window);
   glXDestroyContext(gl.display, gl.context);
 
-  XCloseDisplay(gl.display);
   return 0;
 }

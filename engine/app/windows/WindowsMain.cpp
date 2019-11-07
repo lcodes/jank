@@ -1,14 +1,27 @@
-#include "app/App.hpp"
+#include "app/windows/WindowsApp.hpp"
+#include "app/windows/WindowsWindow.hpp"
 
 #include "app/GfxTest.hpp"
 
+#include "imgui.h"
+
 #pragma warning(push, 0)
+#include <VersionHelpers.h>
 #include <Windows.h>
+#include <Windowsx.h>
 #include <GL/GL.h>
 #include <GL/wglext.h>
 #pragma warning(pop)
 
 #include <process.h>
+
+#include <concurrentqueue.h>
+
+WindowsVersion WindowsApp::osVersion;
+
+constexpr u32 WM_USER_CALLBACK = WM_USER + 1;
+
+static moodycamel::ConcurrentQueue<App::Fn> mainThreadQueue;
 
 #define WGL_ARB_PROCS \
   /* WGL_ARB_create_context */ \
@@ -16,7 +29,9 @@
   /* WGL_ARB_extensions_string */ \
   GL(GETEXTENSIONSSTRING, GetExtensionsString); \
   /* WGL_ARB_pixel_format */ \
-  GL(CHOOSEPIXELFORMAT, ChoosePixelFormat)
+  GL(CHOOSEPIXELFORMAT, ChoosePixelFormat); \
+  GL(GETPIXELFORMATATTRIBFV, GetPixelFormatAttribfv); \
+  GL(GETPIXELFORMATATTRIBIV, GetPixelFormatAttribiv)
 
 #define GL(type, name) static PFNWGL##type##ARBPROC wgl##name##ARB
 WGL_ARB_PROCS;
@@ -53,7 +68,7 @@ static u32 renderMainWin(void* arg) {
   renderMain(arg);
 #else
   auto gl{ reinterpret_cast<WindowsOpenGL*>(arg) };
-  while (true) {
+  while (App::isRunning()) {
     renderMain(arg);
   }
 #endif
@@ -72,176 +87,607 @@ static u32 presentMain(void* arg) {
 }
 #endif
 
+static ImGuiMouseCursor lastCursor;
+static HCURSOR cursors[ImGuiMouseCursor_COUNT];
+
+static HCURSOR InitCursor(LPCWSTR name) { return LoadCursorW(nullptr, name); }
+
+static bool imguiInit;
+
+void jank_imgui_init() {
+  auto& io{ ImGui::GetIO() };
+
+  io.ConfigFlags |=
+    ImGuiConfigFlags_IsSRGB;
+  io.BackendFlags |=
+    ImGuiBackendFlags_HasMouseCursors |
+    ImGuiBackendFlags_HasSetMousePos |
+    ImGuiBackendFlags_HasMouseHoveredViewport |
+    //ImGuiBackendFlags_PlatformHasViewports |
+    //ImGuiBackendFlags_RendererHasViewports |
+    //ImGuiBackendFlags_RendererHasVtxOffset;
+    0;
+
+  io.BackendPlatformName = "Win32";
+  io.KeyMap[ImGuiKey_Tab] = VK_TAB;
+  io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
+  io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
+  io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
+  io.KeyMap[ImGuiKey_DownArrow] = VK_DOWN;
+  io.KeyMap[ImGuiKey_PageUp] = VK_PRIOR;
+  io.KeyMap[ImGuiKey_PageDown] = VK_NEXT;
+  io.KeyMap[ImGuiKey_Home] = VK_HOME;
+  io.KeyMap[ImGuiKey_End] = VK_END;
+  io.KeyMap[ImGuiKey_Insert] = VK_INSERT;
+  io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
+  io.KeyMap[ImGuiKey_Backspace] = VK_BACK;
+  io.KeyMap[ImGuiKey_Space] = VK_SPACE;
+  io.KeyMap[ImGuiKey_Enter] = VK_RETURN;
+  io.KeyMap[ImGuiKey_Escape] = VK_ESCAPE;
+  io.KeyMap[ImGuiKey_KeyPadEnter] = VK_RETURN;
+  io.KeyMap[ImGuiKey_A] = 'A';
+  io.KeyMap[ImGuiKey_C] = 'C';
+  io.KeyMap[ImGuiKey_V] = 'V';
+  io.KeyMap[ImGuiKey_X] = 'X';
+  io.KeyMap[ImGuiKey_Y] = 'Y';
+  io.KeyMap[ImGuiKey_Z] = 'Z';
+
+  cursors[ImGuiMouseCursor_Arrow] = InitCursor(IDC_ARROW);
+  cursors[ImGuiMouseCursor_TextInput] = InitCursor(IDC_IBEAM);
+  cursors[ImGuiMouseCursor_ResizeAll] = InitCursor(IDC_SIZEALL);
+  cursors[ImGuiMouseCursor_ResizeEW] = InitCursor(IDC_SIZEWE);
+  cursors[ImGuiMouseCursor_ResizeNS] = InitCursor(IDC_SIZENS);
+  cursors[ImGuiMouseCursor_ResizeNESW] = InitCursor(IDC_SIZENESW);
+  cursors[ImGuiMouseCursor_ResizeNWSE] = InitCursor(IDC_SIZENWSE);
+  cursors[ImGuiMouseCursor_Hand] = InitCursor(IDC_HAND);
+
+  auto& style = ImGui::GetStyle();
+  style.WindowRounding = 4;
+  style.WindowPadding = { 4, 4 };
+  style.FrameRounding = 4;
+  style.ItemSpacing = { 4, 4 };
+  style.IndentSpacing = 20;
+  style.ScrollbarSize = 10;
+  style.ScrollbarRounding = style.ScrollbarSize / 2;
+
+  imguiInit = true;
+}
+
+#define MAIN_WINDOW() WindowsApp::getMainWindow()->getHandle()
+
+static WindowsOpenGL gl;
+
+static bool mouseCaptured;
+static POINT windowCenter;
+
+void captureMouse() {
+  //SetCapture(wnd);
+  //GetClipCursor(&oldMouseClip);
+  RECT rc;
+  GetWindowRect(MAIN_WINDOW(), &rc);
+  //ClipCursor(&rc);
+
+  ShowCursor(false);
+  windowCenter.x = rc.left + (rc.right - rc.left) / 2;
+  windowCenter.y = rc.top + (rc.bottom - rc.top) / 2;
+  SetCursorPos(windowCenter.x, windowCenter.y);
+
+  auto pt{ windowCenter };
+  ScreenToClient(MAIN_WINDOW(), &pt);
+  gl.mouseX = static_cast<f32>(pt.x);
+  gl.mouseY = static_cast<f32>(pt.y);
+  mouseCaptured = true;
+}
+
+bool ImGui_UpdateMouseCursor() {
+  if (mouseCaptured) return false;
+
+  auto& io = ImGui::GetIO();
+  if (io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) return false;
+
+  auto cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
+  if (lastCursor != cursor) {
+    lastCursor = cursor;
+    SetCursor(cursor == ImGuiMouseCursor_None ? nullptr : cursors[cursor]);
+  }
+  return true;
+}
+
+static void ImGui_UpdateMousePos() {
+  auto& io = ImGui::GetIO();
+  auto hasVP = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+
+  POINT pt;
+  if (io.WantSetMousePos) {
+    pt = {
+      static_cast<int>(io.MousePos.x),
+      static_cast<int>(io.MousePos.y)
+    };
+    if (!hasVP) ClientToScreen(MAIN_WINDOW(), &pt);
+    SetCursorPos(pt.x, pt.y);
+  }
+
+  io.MouseHoveredViewport = 0;
+#if 1
+  io.MousePos = { -FLT_MAX, -FLT_MAX };
+
+  if (auto activeWindow{ GetForegroundWindow() }; activeWindow == MAIN_WINDOW() || IsChild(activeWindow, MAIN_WINDOW())) {
+    if (GetCursorPos(&pt) && ScreenToClient(MAIN_WINDOW(), &pt)) {
+      io.MousePos = {
+        static_cast<float>(pt.x),
+        static_cast<float>(pt.y)
+      };
+    }
+  }
+#else
+  if (!GetCursorPos(&pt)) {
+    io.MousePos = { -FLT_MAX, -FLT_MAX };
+    return;
+  }
+
+  if (auto active = GetForegroundWindow()) {
+    if (IsChild(active, wnd)) active = wnd;
+
+    if (hasVP) {
+      if (ImGui::FindViewportByPlatformHandle(active)) {
+        io.MousePos = {
+          static_cast<float>(pt.x),
+          static_cast<float>(pt.y)
+        };
+      }
+    }
+    else if (active == wnd) {
+      auto clientPt = pt;
+      if (ScreenToClient(wnd, &clientPt)) {
+        io.MousePos = {
+          static_cast<float>(clientPt.x),
+          static_cast<float>(clientPt.y)
+        };
+      }
+    }
+  }
+
+  if (auto hovered = WindowFromPoint(pt)) {
+    if (auto vp = ImGui::FindViewportByPlatformHandle(hovered)) {
+      if ((vp->Flags & ImGuiViewportFlags_NoInputs) == 0) {
+        io.MouseHoveredViewport = vp->ID;
+      }
+    }
+  }
+#endif
+}
+
+void jank_imgui_newFrame() {
+  if (!mouseCaptured && ImGui::IsMouseClicked(0) && !ImGui::IsAnyWindowHovered() && !ImGui::IsAnyItemHovered()) {
+    captureMouse();
+  }
+
+  auto& io = ImGui::GetIO();
+  // TODO io.DisplaySize
+  // TODO update monitors
+
+  io.KeyCtrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+  io.KeyShift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+  io.KeyAlt = (GetKeyState(VK_MENU) & 0x8000) != 0;
+  io.KeySuper = false;
+
+  ImGui_UpdateMousePos();
+  ImGui_UpdateMouseCursor();
+}
+
+// TODO change to CF_UNICODETEXT && convert
+char const* jank_imgui_getClipboardText(void*) {
+  OpenClipboard(nullptr);
+  auto data{ GetClipboardData(CF_TEXT) };
+  auto text{ static_cast<char const*>(GlobalLock(data)) };
+  auto len{ strlen(text) + 1 };
+  auto mem{ reinterpret_cast<char*>(malloc(len)) };
+  memcpy(mem, text, len);
+  GlobalUnlock(data);
+  CloseClipboard();
+  return mem;
+}
+
+void jank_imgui_setClipboardText(void*, char const* text) {
+  auto len{ strlen(text) + 1 };
+  auto mem{ GlobalAlloc(GMEM_MOVEABLE, len) };
+  memcpy(GlobalLock(mem), text, len);
+  GlobalUnlock(mem);
+  OpenClipboard(nullptr);
+  EmptyClipboard();
+  SetClipboardData(CF_TEXT, mem);
+  CloseClipboard();
+}
+
+static void setKey(WPARAM key, bool state) {
+  InputKeys k;
+  switch (key) {
+  case 'W': k = InputKeys::W; break;
+  case 'S': k = InputKeys::S; break;
+  case 'A': k = InputKeys::A; break;
+  case 'D': k = InputKeys::D; break;
+  case VK_SHIFT: k = InputKeys::Shift; break;
+  case VK_SPACE: k = InputKeys::Space; break;
+  default: return;
+  }
+  gl.input[static_cast<u32>(k)] = state;
+}
+
+bool ImGui_WndProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
+  int btn;
+
+  switch (msg) {
+  case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK: btn = 0; goto handleMouseDown;
+  case WM_RBUTTONDOWN: case WM_RBUTTONDBLCLK: btn = 1; goto handleMouseDown;
+  case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK: btn = 2; goto handleMouseDown;
+  case WM_XBUTTONDOWN: case WM_XBUTTONDBLCLK:
+    btn = GET_XBUTTON_WPARAM(w) == XBUTTON1 ? 3 : 4;
+  handleMouseDown:
+    if (!ImGui::IsAnyMouseDown() && GetCapture() == nullptr) SetCapture(wnd);
+    ImGui::GetIO().MouseDown[btn] = true;
+    return true;
+
+  case WM_LBUTTONUP: btn = 0; goto handleMouseUp;
+  case WM_RBUTTONUP: btn = 1; goto handleMouseUp;
+  case WM_MBUTTONUP: btn = 2; goto handleMouseUp;
+  case WM_XBUTTONUP:
+    btn = GET_XBUTTON_WPARAM(w) == XBUTTON1 ? 3 : 4;
+  handleMouseUp:
+    ImGui::GetIO().MouseDown[btn] = false;
+    if (!ImGui::IsAnyMouseDown() && GetCapture() == wnd) ReleaseCapture();
+    return true;
+
+  case WM_MOUSEWHEEL:
+    ImGui::GetIO().MouseWheel += static_cast<float>(GET_WHEEL_DELTA_WPARAM(w)) / WHEEL_DELTA;
+    return true;
+  case WM_MOUSEHWHEEL:
+    ImGui::GetIO().MouseWheelH += static_cast<float>(GET_WHEEL_DELTA_WPARAM(w)) / WHEEL_DELTA;
+    return true;
+
+  case WM_KEYDOWN: case WM_SYSKEYDOWN:
+    if (w <= UINT8_MAX) ImGui::GetIO().KeysDown[w] = true;
+    return true;
+  case WM_KEYUP: case WM_SYSKEYUP:
+    if (w <= UINT8_MAX) ImGui::GetIO().KeysDown[w] = false;
+    return true;
+
+  case WM_CHAR:
+    ImGui::GetIO().AddInputCharacter(static_cast<unsigned int>(w));
+    return true;
+
+  case WM_SETCURSOR:
+    if (imguiInit && LOWORD(l) == HTCLIENT) return ImGui_UpdateMouseCursor();
+    break;
+
+  case WM_DISPLAYCHANGE:
+    //updateMonitors = true;
+    return true;
+  }
+
+  return false;
+}
+
 static LRESULT wndProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) noexcept {
-  if (msg == WM_DESTROY) {
-    PostQuitMessage(0);
+
+  //if (!mouseCaptured && ImGui_WndProc(wnd, msg, w, l)) {
+  //  return 0;
+  //}
+
+  switch (msg) {
+  case WM_DESTROY:
+    PostQuitMessage(0); // TODO only main window
+    return 0;
+
+  case WM_MOVE:
+    return 0;
+
+  case WM_SIZE: {
+    auto width{ LOWORD(l) };
+    auto height{ HIWORD(l) };
+    gl.width = width;
+    gl.height = height;
+    return 0;
+  }
+
+  case WM_KEYDOWN:
+    setKey(w, true);
+    return 0;
+  case WM_KEYUP:
+    setKey(w, false);
+    if (w == VK_ESCAPE && mouseCaptured) {
+      mouseCaptured = false;
+      //ReleaseCapture();
+      //ClipCursor(&oldMouseClip);
+      ShowCursor(true);
+    }
+    return 0;
+
+  case WM_LBUTTONDOWN:
+    if (!mouseCaptured) {
+      captureMouse();
+    }
+    return 0;
+
+  case WM_MOUSELEAVE:
+    gl.mouseX = -1;
+    gl.mouseY = -1;
+    return 0;
+
+  case WM_MOUSEMOVE:
+    if (mouseCaptured) {
+      auto x{ static_cast<f32>(GET_X_LPARAM(l)) };
+      auto y{ static_cast<f32>(GET_Y_LPARAM(l)) };
+      if (x != gl.mouseX || y != gl.mouseY) {
+        gl.xOffset += x - gl.mouseX;
+        gl.yOffset += y - gl.mouseY;
+        SetCursorPos(windowCenter.x, windowCenter.y);
+      }
+    }
+    return 0;
+
+  case WM_USER_CALLBACK: {
+    App::Fn fn;
+    auto ret{ mainThreadQueue.try_dequeue(fn) };
+    ASSERT(ret);
+    fn();
+    break;
+  }
   }
   return DefWindowProcW(wnd, msg, w, l);
 }
-#include <io.h>
-#include <fcntl.h>
-#include <stdio.h>
-static void redirect(DWORD stdHandle, char const* mode, FILE* fp) {
-    auto std{ GetStdHandle(stdHandle) };
-    auto osf{ _open_osfhandle(reinterpret_cast<intptr_t>(std), _O_TEXT) };
-    auto fd { _fdopen(osf, mode) };
-    auto ret{ setvbuf(fd, nullptr, _IONBF, 0) };
-    ASSERT(ret == 0, "");
-    *fp = *fd;
+
+void testInit() {
+
 }
 
-int WINAPI wWinMain(_In_     HINSTANCE instance,
-                    _In_opt_ HINSTANCE prevInstance,
-                    _In_     PWSTR cmdLine,
-                    _In_     int cmdShow)
+/// Entry point when using the Console subsystem.
+int main() {
+  return wWinMain(nullptr, nullptr, nullptr, 0);
+}
+
+// Entry point when using the Windows subsystem.
+int WINAPI wWinMain(_In_     HINSTANCE instance     UNUSED,
+                    _In_opt_ HINSTANCE prevInstance UNUSED,
+                    _In_     PWSTR     cmdLine      UNUSED,
+                    _In_     int       cmdShow      UNUSED)
 {
-  // Parse args
-#if 0
-  AllocConsole();
+  // TODO check prevInstance
 
-  CONSOLE_SCREEN_BUFFER_INFO info;
-  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
-  info.dwSize.Y = 1024;
-  SetConsoleScreenBufferSize(GetStdHandle(STD_OUTPUT_HANDLE), info.dwSize);
+  WindowsApp::main();
+  return 0;
+}
 
-  redirect(STD_OUTPUT_HANDLE, "w", stdout);
-  redirect(STD_ERROR_HANDLE, "w", stderr);
-  redirect(STD_INPUT_HANDLE, "r", stdin);
-  //ios::sync_with_stdio();
-  {
-    fprintf(stdout, "FOO HI\n");
-    fflush(stdout);
-  }
-  //LOG(App, Info, "Test");
+#if BUILD_DEVELOPMENT
+// See WindowsDebug.cpp
+void initWindowsConsole();
+void initWindowsDebugThread();
+void termWindowsDebugThread();
 #endif
 
-  WindowsOpenGL gl;
+void WindowsApp::main() {
+  // TODO: Parse args
+
+  /**/ if (IsWindows10OrGreater())      osVersion = WindowsVersion::Win10;
+  else if (IsWindows8Point1OrGreater()) osVersion = WindowsVersion::Win8_1;
+  else if (IsWindows8OrGreater())       osVersion = WindowsVersion::Win8;
+  else if (IsWindows7OrGreater())       osVersion = WindowsVersion::Win7;
+  else {
+    errorMessageBox(L"Unsupported Windows Version", L"Windows 7 or greater is required.");
+    exit(EXIT_FAILURE);
+  }
+
+  okCom(CoInitializeEx(nullptr,
+                       COINIT_MULTITHREADED |
+                       COINIT_DISABLE_OLE1DDE |
+                       COINIT_SPEED_OVER_MEMORY));
+
+  // TODO load config
+  // TODO gpu driver -> wnd class style
+  WindowsWindow::init();
+
+#if BUILD_DEVELOPMENT
+  initWindowsConsole();
+  initWindowsDebugThread();
+#endif
+
   gl.width = 1920;
   gl.height = 1080;
 
-  // Create window
-  WNDCLASSEXW wc{ sizeof(wc) };
-  wc.style = CS_OWNDC;// CS_HREDRAW | CS_VREDRAW;
-  wc.lpfnWndProc = wndProc;
-  wc.hInstance = GetModuleHandleW(nullptr);
-  wc.hIcon = LoadIconW(wc.hInstance, MAKEINTRESOURCEW(2));
-  wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-  wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BACKGROUND + 1);
-  wc.lpszClassName = L"OpenGL";
-  wc.hIconSm = wc.hIcon;
-  auto classAtom = reinterpret_cast<LPCWSTR>(RegisterClassExW(&wc));
+  // TODO: move to OpenGLDeviceWindows
+  {
+    WNDCLASSEXW wc{ sizeof(wc) };
+    wc.style = CS_OWNDC;
+    wc.lpfnWndProc = DefWindowProcW;
+    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.lpszClassName = L"OpenGL#Loader";
+    auto fakeClass{ reinterpret_cast<LPCWSTR>(RegisterClassExW(&wc)) };
 
-  auto styleEx = WS_EX_APPWINDOW;
-  auto style = WS_OVERLAPPEDWINDOW;
-  RECT rc{ 0, 0, gl.width, gl.height };
-  AdjustWindowRectEx(&rc, style, false, styleEx);
+    auto wnd = CreateWindowEx(0, fakeClass, L"", 0, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
 
-  auto wnd = CreateWindowEx(styleEx, classAtom, TEXT(""), style,
-                            CW_USEDEFAULT, CW_USEDEFAULT,
-                            rc.right - rc.left,
-                            rc.bottom - rc.top,
-                            nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+    gl.dc = GetDC(wnd);
 
-  ShowWindow(wnd, SW_SHOWDEFAULT);
+    PIXELFORMATDESCRIPTOR pfd{ sizeof(pfd) };
+    pfd.nVersion = 1;
+    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 24;
+    pfd.iLayerType = PFD_MAIN_PLANE;
 
-  gl.dc = GetDC(wnd);
+    auto format{ ChoosePixelFormat(gl.dc, &pfd) };
+    SetPixelFormat(gl.dc, format, &pfd);
 
-  PIXELFORMATDESCRIPTOR pfd{};
-  pfd.nSize = 1;
-  pfd.nVersion = 1;
-  pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-  pfd.iPixelType = PFD_TYPE_RGBA;
-  pfd.cColorBits = 32;
-  pfd.iLayerType = PFD_MAIN_PLANE;
+    gl.context = wglCreateContext(gl.dc);
+    gl.makeCurrent();
 
-  auto format{ ChoosePixelFormat(gl.dc, &pfd) };
-  SetPixelFormat(gl.dc, format, &pfd);
+  #define GL(type, name) wgl##name##ARB = reinterpret_cast<PFNWGL##type##ARBPROC>(wglGetProcAddress("wgl" #name "ARB"))
+    WGL_ARB_PROCS;
+  #undef GL
 
-  gl.context = wglCreateContext(gl.dc);
-  gl.makeCurrent();
+    //auto whee = glGetString(GL_EXTENSIONS); // deprecated in 3.0, removed in 3.1
+    auto exts = wglGetExtensionsStringARB(gl.dc);
 
-#define GL(type, name) wgl##name##ARB = reinterpret_cast<PFNWGL##type##ARBPROC>(wglGetProcAddress("wgl" #name "ARB"))
-  WGL_ARB_PROCS;
-#undef GL
+    //LOG(App, Info, "Fake Context Core extensions: %s", whee);
+    LOG(App, Info, "Fake Context WGL extensions: %s", exts);
+    LOG(App, Info, "Fake Context Version: %s", glGetString(GL_VERSION));
+    LOG(App, Info, "Fake Context Vendor: %s", glGetString(GL_VENDOR));
+    LOG(App, Info, "Fake Context Renderer: %s", glGetString(GL_RENDERER));
+    //LOG(App, Info, "Fake Context GLSL: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-  auto whee = glGetString(GL_EXTENSIONS); // deprecated in 3.0, removed in 3.1
-  auto exts = wglGetExtensionsStringARB(gl.dc);
+    wglDeleteContext(gl.context);
+    ReleaseDC(wnd, gl.dc);
+    DestroyWindow(wnd);
+    UnregisterClassW(fakeClass, wc.hInstance);
+  }
 
-  LOG(App, Info, "Fake Context Core extensions: %s", whee);
-  LOG(App, Info, "Fake Context WGL extensions: %s", exts);
-  LOG(App, Info, "Fake Context Version: %s", glGetString(GL_VERSION));
-  LOG(App, Info, "Fake Context Vendor: %s", glGetString(GL_VENDOR));
-  LOG(App, Info, "Fake Context Renderer: %s", glGetString(GL_RENDERER));
-  //LOG(App, Info, "Fake Context GLSL: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
+  // TODO: move to App::init() when using configs
+  AppWindow::Params windowParams;
+  windowParams.position = { AppWindow::defaultPosition, AppWindow::defaultPosition };
+  windowParams.size = { 1920, 1080 };
+  windowParams.title = L"Jank"sv; // TODO from product name
+  windowParams.parent = nullptr;
+  windowParams.flags = AppWindow::DisplayFlags::None;
+  mainWindow = AppWindow::create(windowParams);
 
-  wglDeleteContext(gl.context);
-  //ReleaseDC(wnd, gl.dc);
+  gl.dc = GetDC(MAIN_WINDOW());
 
-  // TODO debug context, forward compatible
-  u32 numFormats;
-  i32 formatAttrs[]{
-    WGL_SUPPORT_OPENGL_ARB, true,
-    WGL_DRAW_TO_WINDOW_ARB, true,
-    WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
-    WGL_COLOR_BITS_ARB, 24,
-    WGL_DEPTH_BITS_ARB, 0,
-    WGL_STENCIL_BITS_ARB, 0,
-    WGL_DOUBLE_BUFFER_ARB, true,
-    WGL_SWAP_METHOD_ARB, WGL_SWAP_EXCHANGE_ARB,
-    WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-    0
-  };
-  wglChoosePixelFormatARB(gl.dc, formatAttrs, nullptr, 1, &format, &numFormats);
-  SetPixelFormat(gl.dc, format, &pfd);
+  {
+    u32 numFormats;
+    i32 numFormatsAttr[]{ WGL_NUMBER_PIXEL_FORMATS_ARB };
+    wglGetPixelFormatAttribivARB(gl.dc, 0, 0, 1, numFormatsAttr, reinterpret_cast<i32*>(&numFormats));
 
-  i32 contextAttrs[]{
-    WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-    WGL_CONTEXT_MINOR_VERSION_ARB, 6,
-    WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-    WGL_CONTEXT_FLAGS_ARB, /* WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB |*/ WGL_CONTEXT_DEBUG_BIT_ARB,
-    0
-  };
-  gl.context = wglCreateContextAttribsARB(gl.dc, nullptr, contextAttrs);
-  gl.makeCurrent();
+    i32 formatAttrs[]{
+      WGL_SUPPORT_OPENGL_ARB, true,
+      WGL_DRAW_TO_WINDOW_ARB, true,
+      WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+      WGL_COLOR_BITS_ARB, 24,
+      WGL_DEPTH_BITS_ARB, 0,
+      WGL_STENCIL_BITS_ARB, 0,
+      WGL_DOUBLE_BUFFER_ARB, true,
+      WGL_SWAP_METHOD_ARB, WGL_SWAP_EXCHANGE_ARB,
+      WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+      0
+    };
+    std::unique_ptr<i32[]> formats(new i32[numFormats]);
+    wglChoosePixelFormatARB(gl.dc, formatAttrs, nullptr, 1, formats.get(), &numFormats);
 
-  exts = wglGetExtensionsStringARB(gl.dc);
+    i32 bestFormatIndex;
+    i32 bestFormatScore{ -1 };
+    i32 queryAttrs[]{
+      WGL_ALPHA_BITS_ARB,
+      WGL_DEPTH_BITS_ARB,
+      WGL_STENCIL_BITS_ARB
+    };
+    std::unique_ptr<i32[]> attrs(new i32[_countof(queryAttrs)]);
+    for (auto n{ 0 }; n < numFormats; n++) {
+      wglGetPixelFormatAttribivARB(gl.dc, formats[n], 0, _countof(queryAttrs), queryAttrs, attrs.get());
 
-  LOG(App, Info, "WGL extensions: %s", exts);
-  LOG(App, Info, "Version: %s", glGetString(GL_VERSION));
-  LOG(App, Info, "Vendor: %s", glGetString(GL_VENDOR));
-  LOG(App, Info, "Renderer: %s", glGetString(GL_RENDERER));
+      i32 score{ 0 };
+      if (attrs[0] == 0) score++;
+      if (attrs[1] == 0) score++;
+      if (attrs[2] == 0) score++;
+
+      if (score > bestFormatScore) {
+        bestFormatIndex = n;
+        bestFormatScore = score;
+
+        if (score == 3) break;
+      }
+    }
+
+    SetPixelFormat(gl.dc, formats[bestFormatIndex], nullptr);
+
+    i32 contextAttrs[]{
+      WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
+      WGL_CONTEXT_MINOR_VERSION_ARB, 6,
+      WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+      WGL_CONTEXT_FLAGS_ARB, /* WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB |*/ WGL_CONTEXT_DEBUG_BIT_ARB,
+      0
+    };
+    gl.context = wglCreateContextAttribsARB(gl.dc, nullptr, contextAttrs);
+    gl.makeCurrent();
+
+    auto exts = wglGetExtensionsStringARB(gl.dc);
+
+    LOG(App, Info, "WGL extensions: %s", exts);
+    LOG(App, Info, "Version: %s", glGetString(GL_VERSION));
+    LOG(App, Info, "Vendor: %s", glGetString(GL_VENDOR));
+    LOG(App, Info, "Renderer: %s", glGetString(GL_RENDERER));
+  }
 
   gl.clearCurrent();
 
-  _beginthreadex(nullptr, 0, renderMainWin, &gl, 0, nullptr);
+  ShowWindow(MAIN_WINDOW(), SW_SHOWDEFAULT);
+
+  auto renderThread = reinterpret_cast<HANDLE>(_beginthreadex(nullptr, 0, renderMainWin, &gl, 0, nullptr));
 
 #if GFX_PRESENT_THREAD
-  _beginthreadex(nullptr, 0, presentMain, &gl, 0, nullptr);
+  auto presentThread = _beginthreadex(nullptr, 0, presentMain, &gl, 0, nullptr);
 #endif
 
+  init();
+  run();
+  term();
+
+  WaitForSingleObject(renderThread, INFINITE);
+
+#if GFX_PRESENT_THREAD
+  WaitForSingleObject(presentThread, INFINITE);
+#endif
+
+#if BUILD_DEVELOPMENT
+  termWindowsDebugThread();
+#endif
+
+  CoUninitialize();
+}
+
+void WindowsApp::run() {
   MSG msg;
-  auto running{ true };
-  while (running) {
+  BOOL ret UNUSED;
+
+  // Run the message pump until WM_QUIT (ret = 0) or failure (ret = -1).
+  while ((ret = GetMessageW(&msg, nullptr, 0, 0)) > 0) {
+    TranslateMessage(&msg);
+    DispatchMessageW(&msg);
+
+    // Empty the message queue, required to gracefully handle application focus.
     while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
-      if (msg.message == WM_QUIT) {
-        running = false;
-        break;
-      }
+      if (msg.message == WM_QUIT) return; // PeekMessage always retrieves WM_QUIT.
 
       TranslateMessage(&msg);
       DispatchMessageW(&msg);
     }
 
-    // TODO run
-    Sleep(10);
+    // Update the application focus state from the received window focus events.
+    // Does nothing if the focus transferred from one application window to another.
+    if (state.wantLoseFocus) {
+      state.wantLoseFocus = false;
+      if (state.wantGainFocus) {
+        state.wantGainFocus = false;
+      }
+      else {
+        loseFocus();
+      }
+    }
+    else if (state.wantGainFocus) {
+      state.wantGainFocus = false;
+      gainFocus();
+    }
   }
 
-  // Terminate
+#if BUILD_DEBUG
+  if (ret == -1) failWin();
+#endif
 
-  return 0;
+  ASSERT(msg.message == WM_QUIT);
 }
 
-int main() {
-  return wWinMain(nullptr, nullptr, nullptr, 0);
+void App::runOnMainThread(Fn&& fn) {
+  mainThreadQueue.enqueue(std::move(fn));
+  
+  okWin(PostMessageW(MAIN_WINDOW(), WM_USER_CALLBACK, 0, 0));
 }
 
+void App::quit() {
+  PostQuitMessage(0);
+}

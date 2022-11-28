@@ -1,4 +1,6 @@
 
-void appInit() {
+namespace Editor::App {
 
-}
+
+} // namespace Editor::App
+

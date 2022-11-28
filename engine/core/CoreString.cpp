@@ -1,9 +1,20 @@
 #include "core/CoreString.hpp"
+#include "core/CoreDebug.hpp"
 
 #include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+
+#if PLATFORM_WINDOWS
+# pragma warning(push, 0)
+# include <Windows.h>
+# pragma warning(pop)
+#endif
+
+
+// Symbols
+// ----------------------------------------------------------------------------
 
 /**
  * Static array of symbol strings.
@@ -76,3 +87,47 @@ StringView Symbol::operator*() const {
   std::scoped_lock _(mutex);
   return buckets[node.bucket]->strings[node.index];
 }
+
+
+// Conversion Functions
+// ----------------------------------------------------------------------------
+
+#if PLATFORM_WINDOWS
+String toUtf8(WString const& s) {
+  auto in{ static_cast<i32>(s.size()) };
+  auto sz{ okWin(WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+                                     s.data(), in, nullptr, 0, nullptr, nullptr)) };
+ 
+  String out;
+  out.resize(static_cast<usize>(sz));
+
+  okWin(WideCharToMultiByte(CP_UTF8, 0, s.data(), in, out.data(), sz, nullptr, nullptr));
+  return out;
+}
+
+WString toUtf16(String const& s) {
+  auto in{ static_cast<i32>(s.size()) };
+  auto sz{ okWin(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                     s.data(), in, nullptr, 0)) };
+
+  WString out;
+  out.resize(static_cast<usize>(sz));
+
+  okWin(MultiByteToWideChar(CP_UTF8, 0, s.data(), in, out.data(), sz));
+  return out;
+}
+
+StringView toUtf8(wchar_t const* from, i32 fromLength, char* to, i32 toLength) {
+  auto sz{ okWin(WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+                                     from, fromLength, to, toLength, nullptr, nullptr)) };
+  return { to, static_cast<usize>(sz) };
+}
+
+WStringView toUtf16(char const* from, i32 fromLength, wchar_t* to, i32 toLength) {
+  auto sz{ okWin(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                     from, fromLength, to, toLength)) };
+  return { to, static_cast<usize>(sz) };
+}
+#else
+# error TODO
+#endif

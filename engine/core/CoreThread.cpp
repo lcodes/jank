@@ -3,8 +3,10 @@
 #include <stdio.h>
 
 #if PLATFORM_WINDOWS
+# pragma warning(push, 0)
 # include <process.h>
 # include <Windows.h>
+# pragma warning(pop)
 #elif PLATFORM_POSIX
 # include <pthread.h>
 

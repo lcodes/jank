@@ -1,53 +1,32 @@
 #pragma once
 
-#include "app/AppWindow.hpp"
+#include "app/Window.hpp"
 
+#pragma warning(push, 0)
 #include <Windows.h>
+#pragma warning(pop)
 
-// - window classes
-// - window styles
-// - window procs
+namespace App::Windows {
 
-// global
-// - setting change
+constexpr uchar const* windowClassName = L"Jank";
 
-// monitors
-// - dpi changed
-// - display changed
+class Main;
 
-// window state
-// - title
-// - position
-// - size
-// - min/max size
-// - hover
+class Window : public App::Window {
+  friend class App::Window; // For AppWindow::create()
+  friend class Main;        // For init() and term()
 
-// events
-// - close
-// - destroy
-
-// input
-// - keyboard
-// - mouse
-// - gamepad (dis)connected
-
-class WindowsApp;
-
-class WindowsWindow : public AppWindow {
-  friend class AppWindow;  // For AppWindow::create()
-  friend class WindowsApp; // For init() and term()
-
-  HWND handle;
-  DWORD style{ 0 };
-  DWORD styleEx{ 0 };
+  HWND  handle;
+  DWORD style;
+  DWORD styleEx;
 
   static void init();
   static void term();
 
   static LRESULT CALLBACK proc(HWND wnd, UINT msg, WPARAM w, LPARAM l) noexcept;
 
-  WindowsWindow(Params const& params);
-  ~WindowsWindow();
+  Window(Params const& params);
+  ~Window();
 
 public:
   HWND getHandle() const { return handle; }
@@ -59,17 +38,10 @@ public:
 
   void setTitle(UStringView title) override;
 
+  void show() override;
+
   void focus() override;
   void close() override;
 };
 
-// App::Window -> Gpu::Viewport
-
-// Windows
-// - Main Viewport
-// - Main Editor
-// - ImGui Viewport
-
-// Class Styles
-// - DirectX => CS_HREDRAW | CS_VREDRAW
-// - OpenGL => CS_OWNDC
+} // namespace App::Windows

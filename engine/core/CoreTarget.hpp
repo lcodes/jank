@@ -246,6 +246,10 @@
 # endif
 #endif
 
+// TODO: assuming all supported platforms are little endian
+#define ARCH_BIG_ENDIAN    0
+#define ARCH_LITTLE_ENDIAN 1
+
 
 // Attributes
 // -----------------------------------------------------------------------------
@@ -259,7 +263,7 @@
 #elif COMPILER_MSVC
 # define UNREACHABLE __assume(0)
 #else
-# define UNREACHABLE
+# define UNREACHABLE abort()
 #endif
 
 #if LANGUAGE_VERSION >= 201803L

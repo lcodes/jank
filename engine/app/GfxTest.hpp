@@ -73,6 +73,7 @@ enum class InputKeys {
   Count
 };
 
+#if 0
 class OpenGL {
 public:
 #if GFX_PRESENT_THREAD
@@ -116,8 +117,7 @@ public:
   virtual u32 getSurface() = 0;
 #endif
 };
-
-void* renderMain(void* arg);
+#endif
 
 #pragma pack(1)
 struct MeshHeader {

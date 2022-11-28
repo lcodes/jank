@@ -2,7 +2,9 @@
 #include "core/CoreString.hpp"
 
 #if PLATFORM_WINDOWS
+# pragma warning(push, 0)
 # include <Windows.h>
+# pragma warning(pop)
 #endif
 
 #include <stdio.h>
@@ -76,13 +78,13 @@ static u32 genericError(uchar* buf, usize bufLength) {
   static constexpr UStringView msg = L"Failed to format the error"sv;
   auto len{ std::min(bufLength - 1, msg.size()) + 1 };
   memcpy(buf, msg.data(), msg.size() * sizeof(uchar));
-  return len - 1;
+  return static_cast<u32>(len - 1);
 }
 
 u32 getErrorC(uchar* buf, usize bufLength, errno_t code) {
 #if PLATFORM_WINDOWS
   auto ret{ _wcserror_s(buf, bufLength, code) };
-  if (ret == 0) return wcslen(buf);
+  if (ret == 0) return static_cast<u32>(wcslen(buf));
 #else
   // FIXME: move to a file where it can be reused!
   static locale_t locale;
@@ -115,6 +117,10 @@ void failC(errno_t code) {
 }
 
 #if PLATFORM_WINDOWS
+u32 getErrorWin(uchar* buf, usize bufLength, DWORD code) {
+  return getErrorCom(buf, bufLength, HRESULT_FROM_WIN32(code));
+}
+
 u32 getErrorCom(uchar* buf, usize bufLength, HRESULT hr) {
   auto len{ FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                            nullptr, static_cast<DWORD>(hr), 0,
@@ -122,7 +128,7 @@ u32 getErrorCom(uchar* buf, usize bufLength, HRESULT hr) {
   if (len != 0) return len;
 
 #if BUILD_DEVELOPMENT
-  auto ret{ swprintf_s(buf, bufLength, L"Error 0x%08x formatting HRESULT 0x%08x",
+  auto ret{ swprintf_s(buf, bufLength, L"Error 0x%08x formatting HRESULT 0x%08lx",
                        static_cast<u32>(GetLastError()), hr) };
   if (ret > 0) return static_cast<u32>(ret);
 #endif

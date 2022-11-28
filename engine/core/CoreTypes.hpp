@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h> // TODO only for _countof on windows!
 
 
 // Primitive Data Types
@@ -37,37 +38,44 @@ using f80   = long double; /// 80-bit floating point number. (But really "at lea
 #if PLATFORM_WINDOWS
 using uchar = wchar_t;
 # define UFMT "%.*S"
+# define USTR(s) L##s
 #else
 using uchar = char;
 # define UFMT "%.*s"
-# define TEXT(s) s
+# define USTR(s) s
 #endif
+
+/// Expands into a 32-bit length and pointer to use in a printf-like function.
+/// To be used with the "%.*s" format for String, and "%.*S" for WString.
+/// Use the UFMT macro with UString.
+/// Also works with StringView.
+#define USTR_ARGS(s) static_cast<u32>(s.size()), s.data()
 
 
 // Basic Math Types
 // -----------------------------------------------------------------------------
 
 union Point {
+  i32 v[2]{ 0, 0 };
   struct {
     i32 x;
     i32 y;
   };
-  i32 v[2];
 };
 
 union Size {
+  u32 v[2]{ 0, 0 };
   struct {
     u32 width;
     u32 height;
   };
-  u32 v[2];
 };
 
 
-// Enum Types
+// Constants
 // -----------------------------------------------------------------------------
 
-
+constexpr u32 cacheLineSize = 64; // TODO use ARCH
 
 
 // Utility Types
@@ -87,6 +95,7 @@ public:
   NonCopyable& operator=(NonCopyable&&) noexcept = delete;
 };
 
+/// Singleton base class. Prefer static classes or namespaces.
 template<typename T>
 class Singleton : NonCopyable {
   static T* instance;

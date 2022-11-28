@@ -22,14 +22,17 @@ sources = ["engine/**/*",
            ]
 
 include_dirs = ["engine",
-                "external/EGL-Registry/api",
-                "external/OpenGL-Registry/api",
+                "external/lz4/lib",
                 "external/rtm/includes",
                 "external/concurrentqueue",
                 "external/imgui",
                 "external/Box2D",
+                "external/EGL-Registry/api",
+                "external/OpenGL-Registry/api",
                 # "external/chibi-scheme/include"
                 ]
+
+libs = ["lz4"]
 
 [targets.JankEngine.filters]
 "engine/app/android" = ["Android"]
@@ -42,10 +45,11 @@ include_dirs = ["engine",
 "engine/audio/openal"    = ["Linux", "Android", "HTML5"]
 "engine/audio/xaudio2"   = ["Windows"]
 
-"engine/gfx/d3d11"  = ["Windows"]
-"engine/gfx/d3d12"  = ["Windows"]
-"engine/gfx/metal"  = ["MacOS", "IOS", "TVOS"]
-"engine/gfx/vulkan" = ["Android", "Windows", "Linux"]
+"engine/gpu/d3d11"  = ["Windows"]
+"engine/gpu/d3d12"  = ["Windows"]
+"engine/gpu/dxgi"   = ["Windows"]
+"engine/gpu/metal"  = ["MacOS", "IOS", "TVOS"]
+"engine/gpu/vulkan" = ["Android", "Windows", "Linux"]
 
 [targets.JankEditor]
 type = "Application"

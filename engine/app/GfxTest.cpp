@@ -1,4 +1,4 @@
-#include "app/App.hpp"
+#include "app/Main.hpp"
 #include "app/GfxTest.hpp"
 #include "core/CoreString.hpp"
 
@@ -74,7 +74,7 @@ void jank_imgui_newFrame();
 char const* jank_imgui_getClipboardText(void*);
 void jank_imgui_setClipboardText(void*, char const*);
 
-#if !PLATFORM_HTML5 && !PLATFORM_WINDOWS
+#if !PLATFORM_HTML5 //&& !PLATFORM_WINDOWS
 void jank_imgui_init() {}
 void jank_imgui_newFrame() {}
 void jank_imgui_setCursor(ImGuiMouseCursor) {}
@@ -309,7 +309,7 @@ static void glCheckImpl(char const* file, u32 line) {
       E(OUT_OF_MEMORY);
       E(INVALID_FRAMEBUFFER_OPERATION);
 # undef E
-    default: ASSERT(0, "Unknown GL Error: %04x", e); UNREACHABLE;
+    default: ASSERT(0, "Unknown GL Error: 0x%04x", e); UNREACHABLE;
     }
     assertFailure(file, line, str);
   }
@@ -341,7 +341,7 @@ static void glCheckFramebuffer() {
       std::string s; \
       s.resize(size); \
       getInfoLog(object, size, nullptr, s.data()); \
-      LOG(App, Error, "Failed to " action ":\n%.*s", size, s.data()); \
+      LOG(Test, Error, "Failed to " action ":\n%.*s", size, s.data()); \
       ASSERT(0); \
     } \
   }
@@ -1460,7 +1460,7 @@ static void setupExtensionMissing(std::string_view ext) {
   NONE(NV_register_combiners)
   NONE(NV_register_combiners2)
   else {
-    LOG(App, Warn, "Unknown GL Extension: %.*s", static_cast<u32>(ext.size()), ext.data());
+    LOG(Test, Warn, "Unknown GL Extension: %.*s", static_cast<u32>(ext.size()), ext.data());
   }
 # undef NONE
 }
@@ -1708,8 +1708,8 @@ static i32 uboOffsetAlignment;
 static u32 uboModel;
 static u32 uboMaterial;
 
-constexpr u32 numFloorMats = 6;
-constexpr u32 numIblTexs = 4;
+constexpr u32 numFloorMats = 1;
+constexpr u32 numIblTexs = 1;
 
 static bool drawWireframe = false;
 static bool drawShadowmap = true;
@@ -1817,7 +1817,7 @@ union Mat4 {
   float v[16];
 };
 
-constexpr i32 numModels = 6;
+constexpr i32 numModels = 1;
 
 static u32 progBlur[2];
 static u32 fboBlur[2];
@@ -2772,14 +2772,22 @@ static void resize(u32 w, u32 h) {
   glCheck();
 }
 
-void* renderMain(void* arg) {
-  auto gl{ reinterpret_cast<OpenGL*>(arg) };
+#include "app/windows/WindowsMain.hpp"
+#include "app/windows/WindowsWindow.hpp"
+#include "gpu/opengl/OpenGL.hpp"
+
+void renderMain() {
+  //auto gl{ reinterpret_cast<OpenGL*>(arg) };
+  auto vp = App::Windows::Main::getMainWindow()->getViewport();
+  auto gl = static_cast<Gpu::OpenGL::Viewport*>(vp);
 
 #if PLATFORM_IPHONE
   auto fboSurface{ gl->getSurface() };
 #else
   constexpr u32 fboSurface = 0;
 #endif
+
+  gl->makeCurrent();
 
   if (!hasInit) {
     hasInit = true;
@@ -2790,14 +2798,13 @@ void* renderMain(void* arg) {
     pthread_setname_np(pthread_self(), "Render");
   #endif
 
-    gl->makeCurrent();
   #if PLATFORM_IPHONE
     glCheckFramebuffer();
   #endif
 
-    LOG(App, Info, "OpenGL Version %s", glGetString(GL_VERSION));
-    LOG(App, Info, "OpenGL Vendor: %s", glGetString(GL_VENDOR));
-    LOG(App, Info, "OpenGL Renderer: %s", glGetString(GL_RENDERER));
+    LOG(Test, Info, "OpenGL Version %s", glGetString(GL_VERSION));
+    LOG(Test, Info, "OpenGL Vendor: %s", glGetString(GL_VENDOR));
+    LOG(Test, Info, "OpenGL Renderer: %s", glGetString(GL_RENDERER));
 
     // TODO better detection, usage
   #if PLATFORM_ANDROID || PLATFORM_IPHONE || PLATFORM_HTML5
@@ -2878,7 +2885,7 @@ void* renderMain(void* arg) {
 
     {
       auto str{ reinterpret_cast<char const*>(glGetString(GL_SHADING_LANGUAGE_VERSION)) };
-      LOG(App, Info, "GLSL Version: %s", str);
+      LOG(Test, Info, "GLSL Version: %s", str);
     }
 
     if (isGLES) {
@@ -2956,9 +2963,6 @@ void* renderMain(void* arg) {
     fixtureDef.friction = .3f;
     body->CreateFixture(&fixtureDef);
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
     jank_imgui_init();
 
     auto& io{ ImGui::GetIO() };
@@ -4318,11 +4322,16 @@ void* renderMain(void* arg) {
     world.Step(1 / 60.f, velocityIterations, positionIterations);
 
     auto& io{ ImGui::GetIO() };
-    io.DisplaySize = ImVec2{ gl->width, gl->height };
-    io.DisplayFramebufferScale = ImVec2{ gl->dpi, gl->dpi };
-
-    io.DeltaTime = gl->getDeltaTime();
+    io.DisplaySize = { gl->width, gl->height };
   #if 0
+    io.DisplayFramebufferScale = { gl->dpi, gl->dpi };
+  #else
+    io.DisplayFramebufferScale = { 1, 1 };
+  #endif
+
+  #if 0
+    io.DeltaTime = gl->getDeltaTime();
+  #else
     io.DeltaTime = 0.016;
   #endif
 
@@ -4473,9 +4482,10 @@ void* renderMain(void* arg) {
 
     // Camera Setup
     // ------------------------------------------------------------------------
-
+  #if 0
     cameraYaw -= gl->xOffset * io.DeltaTime * 7.5;
     cameraPitch -= gl->yOffset * io.DeltaTime * 7.5;
+  #endif
 
     cameraPitch = std::clamp(cameraPitch, -89.f, 89.f);
 
@@ -4483,11 +4493,13 @@ void* renderMain(void* arg) {
     auto cameraQuat{ rtm::quat_from_euler(rtm::degrees(cameraYaw), roll, rtm::degrees(cameraPitch)) };
 
     constexpr f32 moveSpeed = 15;
+  #if 0
     auto cameraMove{ rtm::vector_set(gl->getAxis(InputKeys::A, InputKeys::D) * io.DeltaTime * moveSpeed,
                       gl->getAxis(InputKeys::Shift, InputKeys::Space) * io.DeltaTime * moveSpeed,
                       gl->getAxis(InputKeys::S, InputKeys::W) * io.DeltaTime * moveSpeed) };
 
     cameraPosition = rtm::vector_add(cameraPosition, rtm::quat_mul_vector3(cameraMove, cameraQuat));
+  #endif
 
     auto proj{ projPerspective(rtm::degrees(60.f).as_radians(),
                                gl->width / gl->height, 1.f, 250.f) };
@@ -4520,8 +4532,10 @@ void* renderMain(void* arg) {
     view.m3x4 = rtm::matrix_from_qvv(cameraQuat, cameraPosition, rtm::vector_set(1.f, 1.f, 1.f));
     view.m4x4 = rtm::matrix_inverse(view.m4x4);
 
+  #if 0
     gl->xOffset = 0;
     gl->yOffset = 0;
+  #endif
 
     Mat4 viewProj;
     viewProj.m4x4 = rtm::matrix_mul(view.m4x4, proj.m4x4);
@@ -5156,11 +5170,10 @@ void* renderMain(void* arg) {
     gl->presentReady.set();
 #else
     gl->present();
+    gl->clearCurrent();
 #endif
   }
 
   //glDeleteTextures(1, &fontTexture);
   //io.Fonts->TexID = 0;
-
-  return nullptr;
 }

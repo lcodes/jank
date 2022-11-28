@@ -3,6 +3,15 @@
 #include "core/CoreDebug.hpp"
 
 #include <memory>
+#include <tuple>
+
+#if ARCH_X86 || ARCH_X64
+# define SPIN_LOOP_HINT() _mm_pause()
+#elif ARCH_ARM || ARCH_ARM64
+# define SPIN_LOOP_HINT() __yield()
+#else
+# define SPIN_LOOP_HINT()
+#endif
 
 // TODO: fallbacks for HTML5 (compile without pthread, async thread creation otherwise)
 

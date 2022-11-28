@@ -84,7 +84,12 @@ def __devenv_fix(build_dir, kwargs):
       f.write(vcxproj)
 
 def __devenv_build(build_dir, name, config, kwargs):
-  subprocess.run([devenv_cmd, name + '.sln', '/Build', config + '|x64'],
+  extra_args = []
+  project = kwargs.get('project', None)
+  if project:
+    extra_args = ['/Project', project]
+
+  subprocess.run([devenv_cmd, name + '.sln', '/Build', config + '|x64'] + extra_args,
                  cwd=build_dir,
                  check=True,
                  env={**os.environ.copy(), **kwargs.get('env', {})})
@@ -140,3 +145,22 @@ def devenv(name, input_dir, **kwargs):
 
   __devenv_build(build_dir, name, kwargs.get('release', 'Release'), kwargs)
   __copy_all(build_dir, kwargs, 'release')
+
+def __fix_windows_drive(m):
+  return '/mnt/' + m.group(1).lower() + '/'
+
+def configure(name, input_dir, args):
+  #build_dir = os.path.join(temp_dir, name)
+  build_dir = os.path.join(root_dir, input_dir)
+  script = os.path.join(root_dir, input_dir, 'configure')
+
+  #if not os.path.isdir(build_dir):
+  #  os.makedirs(build_dir)
+
+  if is_windows:
+    # subprocess.run(['bash', re.sub(r'^([A-Z]):/', __fix_windows_drive,
+    #                                script.replace('\\', '/'))] + args,
+    #                cwd=build_dir,
+    #                check=True)
+
+    subprocess.run(['make'], cwd=build_dir, check=True)

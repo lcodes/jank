@@ -68,6 +68,7 @@ using BOOL    = int;
 using DWORD   = unsigned long;
 using HRESULT = long;
 
+u32 getErrorWin(uchar* buf, usize bufLength, DWORD code);
 u32 getErrorCom(uchar* buf, usize bufLength, HRESULT hr);
 
 void failWin();

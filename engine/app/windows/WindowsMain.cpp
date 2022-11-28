@@ -1,81 +1,23 @@
-#include "app/windows/WindowsApp.hpp"
+#include "app/windows/WindowsMain.hpp"
 #include "app/windows/WindowsWindow.hpp"
 
-#include "app/GfxTest.hpp"
-
-#include "imgui.h"
+#include <concurrentqueue.h>
 
 #pragma warning(push, 0)
 #include <VersionHelpers.h>
 #include <Windows.h>
 #include <Windowsx.h>
-#include <GL/GL.h>
-#include <GL/wglext.h>
 #pragma warning(pop)
 
-#include <process.h>
+namespace App::Windows {
 
-#include <concurrentqueue.h>
-
-WindowsVersion WindowsApp::osVersion;
+Version Main::osVersion;
 
 constexpr u32 WM_USER_CALLBACK = WM_USER + 1;
 
-static moodycamel::ConcurrentQueue<App::Fn> mainThreadQueue;
+static moodycamel::ConcurrentQueue<Main::Fn> mainThreadQueue;
 
-#define WGL_ARB_PROCS \
-  /* WGL_ARB_create_context */ \
-  GL(CREATECONTEXTATTRIBS, CreateContextAttribs); \
-  /* WGL_ARB_extensions_string */ \
-  GL(GETEXTENSIONSSTRING, GetExtensionsString); \
-  /* WGL_ARB_pixel_format */ \
-  GL(CHOOSEPIXELFORMAT, ChoosePixelFormat); \
-  GL(GETPIXELFORMATATTRIBFV, GetPixelFormatAttribfv); \
-  GL(GETPIXELFORMATATTRIBIV, GetPixelFormatAttribiv)
-
-#define GL(type, name) static PFNWGL##type##ARBPROC wgl##name##ARB
-WGL_ARB_PROCS;
-#undef GL
-
-class WindowsOpenGL : public OpenGL {
-public:
-  HDC   dc;
-  HGLRC context;
-
-  void* getProcAddress(char const* name) override {
-    return wglGetProcAddress(name);
-  }
-
-  void present() override {
-    SwapBuffers(dc);
-  }
-
-  void clearCurrent() override {
-    wglMakeCurrent(nullptr, nullptr);
-  }
-
-  void makeCurrent() override {
-    wglMakeCurrent(dc, context);
-  }
-
-  f64 getDeltaTime() override {
-    return 0.016;
-  }
-};
-
-static u32 renderMainWin(void* arg) {
-#if GFX_PRESENT_THREAD
-  renderMain(arg);
-#else
-  auto gl{ reinterpret_cast<WindowsOpenGL*>(arg) };
-  while (App::isRunning()) {
-    renderMain(arg);
-  }
-#endif
-  return 0;
-}
-
-#if GFX_PRESENT_THREAD
+#if 0 //GFX_PRESENT_THREAD
 static u32 presentMain(void* arg) {
   auto gl{ reinterpret_cast<WindowsOpenGL*>(arg) };
   while (true) {
@@ -87,6 +29,7 @@ static u32 presentMain(void* arg) {
 }
 #endif
 
+#if 0
 static ImGuiMouseCursor lastCursor;
 static HCURSOR cursors[ImGuiMouseCursor_COUNT];
 
@@ -154,8 +97,6 @@ void jank_imgui_init() {
 }
 
 #define MAIN_WINDOW() WindowsApp::getMainWindow()->getHandle()
-
-static WindowsOpenGL gl;
 
 static bool mouseCaptured;
 static POINT windowCenter;
@@ -374,13 +315,6 @@ static LRESULT wndProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) noexcept {
   //}
 
   switch (msg) {
-  case WM_DESTROY:
-    PostQuitMessage(0); // TODO only main window
-    return 0;
-
-  case WM_MOVE:
-    return 0;
-
   case WM_SIZE: {
     auto width{ LOWORD(l) };
     auto height{ HIWORD(l) };
@@ -435,42 +369,33 @@ static LRESULT wndProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) noexcept {
   }
   return DefWindowProcW(wnd, msg, w, l);
 }
-
-void testInit() {
-
-}
-
-/// Entry point when using the Console subsystem.
-int main() {
-  return wWinMain(nullptr, nullptr, nullptr, 0);
-}
-
-// Entry point when using the Windows subsystem.
-int WINAPI wWinMain(_In_     HINSTANCE instance     UNUSED,
-                    _In_opt_ HINSTANCE prevInstance UNUSED,
-                    _In_     PWSTR     cmdLine      UNUSED,
-                    _In_     int       cmdShow      UNUSED)
-{
-  // TODO check prevInstance
-
-  WindowsApp::main();
-  return 0;
-}
+#endif
 
 #if BUILD_DEVELOPMENT
 // See WindowsDebug.cpp
-void initWindowsConsole();
-void initWindowsDebugThread();
-void termWindowsDebugThread();
+void initConsole();
+void initDebugThread();
+void termDebugThread();
 #endif
 
-void WindowsApp::main() {
+void Main::main() {
   // TODO: Parse args
 
-  /**/ if (IsWindows10OrGreater())      osVersion = WindowsVersion::Win10;
-  else if (IsWindows8Point1OrGreater()) osVersion = WindowsVersion::Win8_1;
-  else if (IsWindows8OrGreater())       osVersion = WindowsVersion::Win8;
-  else if (IsWindows7OrGreater())       osVersion = WindowsVersion::Win7;
+  auto singleton{ okWin(CreateMutexW(nullptr, false, windowClassName)) };
+  if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    if (auto window{ FindWindowW(windowClassName, nullptr) }) {
+      okWin(SetForegroundWindow(window));
+      okWin(BringWindowToTop(window));
+    }
+
+    okWin(CloseHandle(singleton));
+    exit(EXIT_FAILURE);
+  }
+
+  /**/ if (IsWindows10OrGreater())      osVersion = Version::Win10;
+  else if (IsWindows8Point1OrGreater()) osVersion = Version::Win8_1;
+  else if (IsWindows8OrGreater())       osVersion = Version::Win8;
+  else if (IsWindows7OrGreater())       osVersion = Version::Win7;
   else {
     errorMessageBox(L"Unsupported Windows Version", L"Windows 7 or greater is required.");
     exit(EXIT_FAILURE);
@@ -483,170 +408,33 @@ void WindowsApp::main() {
 
   // TODO load config
   // TODO gpu driver -> wnd class style
-  WindowsWindow::init();
 
 #if BUILD_DEVELOPMENT
-  initWindowsConsole();
-  initWindowsDebugThread();
+  initConsole();
+  initDebugThread();
 #endif
 
-  gl.width = 1920;
-  gl.height = 1080;
-
-  // TODO: move to OpenGLDeviceWindows
-  {
-    WNDCLASSEXW wc{ sizeof(wc) };
-    wc.style = CS_OWNDC;
-    wc.lpfnWndProc = DefWindowProcW;
-    wc.hInstance = GetModuleHandleW(nullptr);
-    wc.lpszClassName = L"OpenGL#Loader";
-    auto fakeClass{ reinterpret_cast<LPCWSTR>(RegisterClassExW(&wc)) };
-
-    auto wnd = CreateWindowEx(0, fakeClass, L"", 0, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
-
-    gl.dc = GetDC(wnd);
-
-    PIXELFORMATDESCRIPTOR pfd{ sizeof(pfd) };
-    pfd.nVersion = 1;
-    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    pfd.iPixelType = PFD_TYPE_RGBA;
-    pfd.cColorBits = 24;
-    pfd.iLayerType = PFD_MAIN_PLANE;
-
-    auto format{ ChoosePixelFormat(gl.dc, &pfd) };
-    SetPixelFormat(gl.dc, format, &pfd);
-
-    gl.context = wglCreateContext(gl.dc);
-    gl.makeCurrent();
-
-  #define GL(type, name) wgl##name##ARB = reinterpret_cast<PFNWGL##type##ARBPROC>(wglGetProcAddress("wgl" #name "ARB"))
-    WGL_ARB_PROCS;
-  #undef GL
-
-    //auto whee = glGetString(GL_EXTENSIONS); // deprecated in 3.0, removed in 3.1
-    auto exts = wglGetExtensionsStringARB(gl.dc);
-
-    //LOG(App, Info, "Fake Context Core extensions: %s", whee);
-    LOG(App, Info, "Fake Context WGL extensions: %s", exts);
-    LOG(App, Info, "Fake Context Version: %s", glGetString(GL_VERSION));
-    LOG(App, Info, "Fake Context Vendor: %s", glGetString(GL_VENDOR));
-    LOG(App, Info, "Fake Context Renderer: %s", glGetString(GL_RENDERER));
-    //LOG(App, Info, "Fake Context GLSL: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
-
-    wglDeleteContext(gl.context);
-    ReleaseDC(wnd, gl.dc);
-    DestroyWindow(wnd);
-    UnregisterClassW(fakeClass, wc.hInstance);
-  }
-
-  // TODO: move to App::init() when using configs
-  AppWindow::Params windowParams;
-  windowParams.position = { AppWindow::defaultPosition, AppWindow::defaultPosition };
-  windowParams.size = { 1920, 1080 };
-  windowParams.title = L"Jank"sv; // TODO from product name
-  windowParams.parent = nullptr;
-  windowParams.flags = AppWindow::DisplayFlags::None;
-  mainWindow = AppWindow::create(windowParams);
-
-  gl.dc = GetDC(MAIN_WINDOW());
-
-  {
-    u32 numFormats;
-    i32 numFormatsAttr[]{ WGL_NUMBER_PIXEL_FORMATS_ARB };
-    wglGetPixelFormatAttribivARB(gl.dc, 0, 0, 1, numFormatsAttr, reinterpret_cast<i32*>(&numFormats));
-
-    i32 formatAttrs[]{
-      WGL_SUPPORT_OPENGL_ARB, true,
-      WGL_DRAW_TO_WINDOW_ARB, true,
-      WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
-      WGL_COLOR_BITS_ARB, 24,
-      WGL_DEPTH_BITS_ARB, 0,
-      WGL_STENCIL_BITS_ARB, 0,
-      WGL_DOUBLE_BUFFER_ARB, true,
-      WGL_SWAP_METHOD_ARB, WGL_SWAP_EXCHANGE_ARB,
-      WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-      0
-    };
-    std::unique_ptr<i32[]> formats(new i32[numFormats]);
-    wglChoosePixelFormatARB(gl.dc, formatAttrs, nullptr, 1, formats.get(), &numFormats);
-
-    i32 bestFormatIndex;
-    i32 bestFormatScore{ -1 };
-    i32 queryAttrs[]{
-      WGL_ALPHA_BITS_ARB,
-      WGL_DEPTH_BITS_ARB,
-      WGL_STENCIL_BITS_ARB
-    };
-    std::unique_ptr<i32[]> attrs(new i32[_countof(queryAttrs)]);
-    for (auto n{ 0 }; n < numFormats; n++) {
-      wglGetPixelFormatAttribivARB(gl.dc, formats[n], 0, _countof(queryAttrs), queryAttrs, attrs.get());
-
-      i32 score{ 0 };
-      if (attrs[0] == 0) score++;
-      if (attrs[1] == 0) score++;
-      if (attrs[2] == 0) score++;
-
-      if (score > bestFormatScore) {
-        bestFormatIndex = n;
-        bestFormatScore = score;
-
-        if (score == 3) break;
-      }
-    }
-
-    SetPixelFormat(gl.dc, formats[bestFormatIndex], nullptr);
-
-    i32 contextAttrs[]{
-      WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-      WGL_CONTEXT_MINOR_VERSION_ARB, 6,
-      WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-      WGL_CONTEXT_FLAGS_ARB, /* WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB |*/ WGL_CONTEXT_DEBUG_BIT_ARB,
-      0
-    };
-    gl.context = wglCreateContextAttribsARB(gl.dc, nullptr, contextAttrs);
-    gl.makeCurrent();
-
-    auto exts = wglGetExtensionsStringARB(gl.dc);
-
-    LOG(App, Info, "WGL extensions: %s", exts);
-    LOG(App, Info, "Version: %s", glGetString(GL_VERSION));
-    LOG(App, Info, "Vendor: %s", glGetString(GL_VENDOR));
-    LOG(App, Info, "Renderer: %s", glGetString(GL_RENDERER));
-  }
-
-  gl.clearCurrent();
-
-  ShowWindow(MAIN_WINDOW(), SW_SHOWDEFAULT);
-
-  auto renderThread = reinterpret_cast<HANDLE>(_beginthreadex(nullptr, 0, renderMainWin, &gl, 0, nullptr));
-
-#if GFX_PRESENT_THREAD
-  auto presentThread = _beginthreadex(nullptr, 0, presentMain, &gl, 0, nullptr);
-#endif
+  Window::init();
 
   init();
   run();
   term();
 
-  WaitForSingleObject(renderThread, INFINITE);
-
-#if GFX_PRESENT_THREAD
-  WaitForSingleObject(presentThread, INFINITE);
-#endif
-
 #if BUILD_DEVELOPMENT
-  termWindowsDebugThread();
+  termDebugThread();
 #endif
 
   CoUninitialize();
+
+  okWin(CloseHandle(singleton));
 }
 
-void WindowsApp::run() {
+void Main::run() {
   MSG msg;
-  BOOL ret UNUSED;
+  BOOL result;
 
   // Run the message pump until WM_QUIT (ret = 0) or failure (ret = -1).
-  while ((ret = GetMessageW(&msg, nullptr, 0, 0)) > 0) {
+  while ((result = GetMessageW(&msg, nullptr, 0, 0)) > 0) {
     TranslateMessage(&msg);
     DispatchMessageW(&msg);
 
@@ -675,19 +463,35 @@ void WindowsApp::run() {
     }
   }
 
-#if BUILD_DEBUG
-  if (ret == -1) failWin();
-#endif
-
+  okWin(result != -1);
   ASSERT(msg.message == WM_QUIT);
 }
 
-void App::runOnMainThread(Fn&& fn) {
-  mainThreadQueue.enqueue(std::move(fn));
-  
-  okWin(PostMessageW(MAIN_WINDOW(), WM_USER_CALLBACK, 0, 0));
+} // namespace App::Windows
+
+void App::Main::runOnMainThread(Fn&& fn) {
+  App::Windows::mainThreadQueue.enqueue(std::move(fn));
+
+  ASSERT(0, "TODO");
+  //okWin(PostMessageW(MAIN_WINDOW(), WM_USER_CALLBACK, 0, 0));
 }
 
-void App::quit() {
+void App::Main::quit() {
   PostQuitMessage(0);
+}
+
+// Entry point when using the Windows subsystem.
+int WINAPI wWinMain(_In_     HINSTANCE instance     UNUSED,
+                    _In_opt_ HINSTANCE prevInstance UNUSED,
+                    _In_     PWSTR     cmdLine      UNUSED,
+                    _In_     int       cmdShow      UNUSED) {
+  // TODO check prevInstance
+
+  App::Windows::Main::main();
+  return 0;
+}
+
+/// Entry point when using the Console subsystem.
+int main() {
+  return wWinMain(nullptr, nullptr, nullptr, 0);
 }

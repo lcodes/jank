@@ -2,9 +2,13 @@
 #include "core/CoreString.hpp"
 #include "core/CoreThread.hpp"
 
+#pragma warning(push, 0)
 #include <Windows.h>
+#pragma warning(pop)
 
 #if BUILD_DEVELOPMENT
+
+namespace App::Windows {
 
 // Debug Thread
 // ----------------------------------------------------------------------------
@@ -21,9 +25,9 @@ static void debugThreadMain() {
   Thread::setName(L"Debug");
 
   auto processId{ GetCurrentProcessId() };
-  auto bufReady { okWin(CreateEventW(nullptr, false, true, L"DBWIN_BUFFER_READY")) };
+  auto bufReady{ okWin(CreateEventW(nullptr, false, true,  L"DBWIN_BUFFER_READY")) };
   auto dataReady{ okWin(CreateEventW(nullptr, false, false, L"DBWIN_DATA_READY")) };
-  auto fileMap  { okWin(CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr,
+  auto fileMap{ okWin(CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr,
                                            PAGE_READWRITE, 0, sizeof(DBWinBuffer),
                                            L"DBWIN_BUFFER")) };
   auto buf{ reinterpret_cast<DBWinBuffer*>(okWin(MapViewOfFile(fileMap, FILE_MAP_READ,
@@ -49,14 +53,14 @@ static void debugThreadMain() {
   okWin(CloseHandle(bufReady));
 }
 
-void initWindowsDebugThread() {
+void initDebugThread() {
   Thread::Params params{ 0x200, Thread::Priority::Lowest };
 
   debugThreadRunning = true;
   debugThread = Thread(params, debugThreadMain);
 }
 
-void termWindowsDebugThread() {
+void termDebugThread() {
   debugThreadRunning = false;
   debugThread.join();
 }
@@ -75,8 +79,7 @@ struct EnumFontParams {
 static int CALLBACK enumFontProc(LOGFONTW    const* logFont    UNUSED,
                                  TEXTMETRICW const* textMetric UNUSED,
                                  DWORD              fontType,
-                                 LPARAM             lParam) noexcept
-{
+                                 LPARAM             lParam) noexcept {
   auto params{ reinterpret_cast<EnumFontParams*>(lParam) };
   params->found = true;
   if (fontType & TRUETYPE_FONTTYPE) {
@@ -86,18 +89,18 @@ static int CALLBACK enumFontProc(LOGFONTW    const* logFont    UNUSED,
   return true;
 }
 
-void initWindowsConsole() {
+void initConsole() {
   HWND wnd;
 
   // Create the console window when using the Windows subsystem.
-  if (!(wnd = GetConsoleWindow())) {
+  if ((wnd = GetConsoleWindow()) == nullptr) {
     okWin(AllocConsole());
     okWin(SetConsoleTitleW(L"Jank"));
 
     FILE* dummy;
     okC(_wfreopen_s(&dummy, L"CONOUT$", L"wb", stdout));
-    okC(_wfreopen_s(&dummy, L"CONERR$", L"wb", stderr));
-    okC(_wfreopen_s(&dummy, L"CONIN$",  L"rb", stdin));
+    okC(_wfreopen_s(&dummy, L"CONOUT$", L"wb", stderr));
+    okC(_wfreopen_s(&dummy, L"CONIN$", L"rb", stdin));
 
     wnd = GetConsoleWindow();
   }
@@ -126,7 +129,7 @@ void initWindowsConsole() {
   CONSOLE_SCREEN_BUFFER_INFO info;
   okWin(GetConsoleScreenBufferInfo(handle, &info));
 
-  info.dwSize.Y = 1024;
+  info.dwSize.Y = 0x4000;
   okWin(SetConsoleScreenBufferSize(handle, info.dwSize));
 
   // Configure the console display font if its available.
@@ -134,7 +137,7 @@ void initWindowsConsole() {
   constexpr usize fontNameSize{ (fontName.size() + 1) * sizeof(wchar_t) };
 
   LOGFONTW lf;
-  lf.lfCharSet        = DEFAULT_CHARSET;
+  lf.lfCharSet = DEFAULT_CHARSET;
   lf.lfPitchAndFamily = 0;
   memcpy(lf.lfFaceName, fontName.data(), fontNameSize);
 
@@ -145,8 +148,8 @@ void initWindowsConsole() {
 
   if (params.found) {
     CONSOLE_FONT_INFOEX font;
-    font.cbSize     = sizeof(font);
-    font.nFont      = 0;
+    font.cbSize = sizeof(font);
+    font.nFont = 0;
     font.dwFontSize = { 0, 16 };
     font.FontFamily = params.family;
     font.FontWeight = FW_NORMAL;
@@ -154,5 +157,7 @@ void initWindowsConsole() {
     okWin(SetCurrentConsoleFontEx(handle, false, &font));
   }
 }
+
+} // namespace App::Windows
 
 #endif // BUILD_DEVELOPMENT

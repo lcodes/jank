@@ -26,5 +26,5 @@ def build_assimp():
     'contrib/irrXML/IrrXML.vcxproj'
   ])
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   build_assimp()
